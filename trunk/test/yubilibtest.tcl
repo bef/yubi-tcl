@@ -1,0 +1,103 @@
+#!/usr/bin/tclsh
+set auto_path [linsert $auto_path 0 [file join [file dirname $::argv0] ..]]
+package require tcltest
+package require yubi
+
+namespace eval ::yubi::test {
+	namespace import ::tcltest::*
+	#configure -verbose {body pass skip error line}
+	
+	proc api_response_error {body} {
+		set opts {api_response OK}
+		catch $body result opts
+		return [dict get $opts api_response]
+	}
+	
+	test lzip {} -body {
+		::yubi::lzip {a b c} {1 2 3}
+	} -result {a 1 b 2 c 3}
+
+	test ycrc {} -setup {package require base64} -body {
+		::yubi::ycrc [base64::decode {AAAAAAvvBACw8XsB9XwWzA==}]
+	} -result [expr {0xf0b8}]
+	
+	test is_valid_keymap-1 {+} -body {
+		::yubi::is_valid_keymap {0123456789abcdef}
+	} -result {1}
+
+	test is_valid_keymap-2 {-} -body {
+		::yubi::is_valid_keymap {01234a6789abcdef}
+	} -result {0}
+
+	test find_keymap-1 {(too short)} -body {
+		api_response_error {::yubi::find_keymap abcde}
+	} -result {BAD_OTP}
+
+	test find_keymap-2 {(too long)} -body {
+		api_response_error {::yubi::find_keymap 00000000001111111111222222222233333333334444444444}
+	} -result {BAD_OTP}
+	
+	test find_keymap-2 {(invalid keymap)} -body {
+		api_response_error {::yubi::find_keymap 00000000001111111111222222222233}
+	} -result {BAD_OTP}
+
+	test find_keymap-3 {(dvorak)} -body {
+		::yubi::find_keymap {knbunbebi.xgexxbpxdkhihttub.gkub}
+	} -result {jxe.uidchtnbpygk}
+
+	test find_keymap-4 {(us/de)} -body {
+		::yubi::find_keymap {jieljlbrkbcjefcrtifkvfrgclluctbk}
+	} -result {cbdefghijklnrtuv}
+
+	test find_keymap-5 {(other keymap)} -body {
+		::yubi::find_keymap {сивуапршолдткегмрврпррсоиторашемдосшшгркктгпепгмирмпкк}
+	} -result {сивуапршолдткегм}
+
+	test hex2bin {} -body {
+		::yubi::hex2bin {61626364}
+	} -result {abcd}
+
+	test bin2hex {} -body {
+		::yubi::bin2hex {abcd}
+	} -result {61626364}
+
+	test mhdecode-1 {(incorrect CRC)} -body {
+		api_response_error {::yubi::mhdecode 1f086cb16e52ee60e5f9755a54e1b5e5 ljvjdrtugibnjvlcidelcblvjeikriju}
+	} -result {BAD_OTP}
+
+	test mhdecode-2 {+} -body {
+		dict get [::yubi::mhdecode 1f086cb16e52ee60e5f9755a54e1b5e5 ljvjdrtugibnjvlcidelcblvjeikriiu] uid
+	} -result {010203040506}
+	
+	test api_hmac {} -body {
+		::yubi::api_hmac 2f086cb16e52ee60e5f9755a54e1b5e5 {foo bar a 1 b 2}
+	} -result {i6CJVUrVRnTld0bWhiaddmyB2nI=}
+	
+	test nonce {} -body {
+		set n [::yubi::nonce]
+		expr "[string length $n] == 32 && [string is xdigit $n]"
+	} -result 1
+	
+	test timestamp {} -body {
+		regexp -- {(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:Z\d+)?} [::yubi::timestamp]
+	} -result {1}
+	
+	test scan_timestamp {} -body {
+		::yubi::scan_timestamp {2011-01-01T00:00Z0264}
+	}
+
+	test base642hex {} -body {
+		::yubi::base642hex {HwhssW5S7mDl+XVaVOG15Q==}
+	} -result {1f086cb16e52ee60e5f9755a54e1b5e5}
+	
+	test hex2base64 {} -body {
+		::yubi::hex2base64 1f086cb16e52ee60e5f9755a54e1b5e5
+	} -result {HwhssW5S7mDl+XVaVOG15Q==}
+	
+	test remap_modhex {} -body {
+		::yubi::remap_modhex {knbunbebi.xgexxbpxdkhihttub.gkub}
+	} -result {vlnflndngebudbbnrbhvjgjkkfneuvfn}
+
+	
+	cleanupTests
+}

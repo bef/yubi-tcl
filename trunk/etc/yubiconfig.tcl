@@ -1,0 +1,14 @@
+
+## additional search path for yubilib -- where to find yubi/pkgIndex.tcl
+set ::config(auto_path) {/opt/yubi /opt/yubi-tcl /usr/lib/yubi-tcl /usr/local/lib/yubi-tcl [file join [info script] ..]}
+
+## show debug messages
+set ::config(debug) 0
+
+## select backend: dummy | file
+set ::config(wsapi_backend) file
+
+## configure file backend
+set ::config(wsapi_backend_file) {datadir "/opt/yubi/data" cachedir "/var/cache/yubi"}
+
+
