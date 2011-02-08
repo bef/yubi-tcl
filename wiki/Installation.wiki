@@ -1,0 +1,69 @@
+#summary Detailed installation guide
+
+= Installation / Configuration =
+== Prerequisits ==
+The following software is required in order to run yubi-tcl:
+  * tcl8.5 or 8.6
+  * tcllib
+  * a CGI-capable web server, e.g. boa or apache2
+On Debian or Ubuntu try: {{{apt-get install tcl8.5 tcllib}}}
+
+== Download / Checkout ==
+  * Stable releases can be downloaded from https://code.google.com/p/yubi-tcl/downloads/list
+  * Development versions can be checked out as explained on the [https://code.google.com/p/yubi-tcl/source/checkout checkout page], e.g.
+  {{{svn checkout http://yubi-tcl.googlecode.com/svn/trunk/ yubi-tcl}}}
+
+== Files ==
+|| cgi-verify-2.0.tcl || validation server ||
+|| data/ || user and key storage for file backend ||
+|| etc/yubiconfig.tcl || validation server configuration ||
+|| examples/ || examples illustrating library and client ||
+|| test/ || unit tests ||
+|| yubi/ || library files ||
+
+== Initial setup and configuration ==
+yubi-tcl is preconfigured to search for its configuration file {{{yubiconfig.tcl}}} in all of the following locations:
+{{{/etc/yubi /opt/yubi/etc /opt/yubi-tcl/etc /usr/lib/yubi-tcl/etc /usr/local/lib/yubi-tcl/etc}}}. In order of recommended preference you may choose to  
+  * unpack yubi-tcl accordingly, e.g. to /opt, 
+  * OR unpack yubi-tcl to a location of your convenience and create symlinks
+  * OR unpack yubi-tcl anywhere and change the search path in {{{cgi-verify-2.0.tcl}}} (least preferred, since code changes may conflict with swift and easy software upgrades).
+
+Library files located in yubi-tcl/yubi must be found by the Tcl installation. Tcl's library search path {{{auto_path}}} can be amended in {{{yubiconfig.tcl}}}, which defaults to {{{/opt/yubi /opt/yubi-tcl /usr/lib/yubi-tcl /usr/local/lib/yubi-tcl}}}. Alternatively you may choose to symlink or copy the yubi-tcl/yubi directory to one of the auto_path directories, which can be printed like so: {{{echo "puts [set auto_path]" |tclsh}}}.
+
+Next, copy or symlink cgi-verify-2.0.tcl to your cgi-bin directory, e.g.
+{{{ln -s /opt/yubi-tcl/cgi-verify-2.0.tcl /usr/lib/cgi-bin/yubiverify2.0.tcl}}}.
+
+Edit `yubiconfig.tcl` to suit your installation:
+  * add the location of the `yubi/` library directory to auto_path (as described above), e.g.
+  {{{set ::config(auto_path) {/home/yubi/apps/yubi-tcl} }}}
+  * set data and cache directories for the file backend:
+  {{{set ::config(wsapi_backend_file) {datadir "/opt/yubi/data" cachedir "/var/cache/yubi"} }}}
+
+== Webserver setup ==
+This is a minimalistic example configuration for the [http://www.boa.org/ boa webserver]:
+
+boa.conf:
+{{{
+Port 88
+User www-data2
+Group www-data2
+ErrorLog /var/log/boa/error_log
+AccessLog /var/log/boa/access_log
+CGILog /var/log/boa/cgi_log
+DocumentRoot /var/www2
+CGIPath /bin:/usr/bin:/usr/local/bin
+ScriptAlias /cgi-bin/ /usr/lib/cgi-bin2/
+}}}
+
+Note the dedicated User and Group `www-data2` and cgi-bin directory `/usr/lib/cgi-bin2/`.
+
+== File backend setup ==
+  * Create data and cache directories as configured in `yubiconfig.tcl`:
+  {{{mkdir -p /var/cache/yubi /opt/yubi/data/keys /opt/yubi/data/users}}}
+  * Set permissions (www-data2 is the assumed user and group name running a webserver):
+{{{
+chgrp -R www-data2 /opt/yubi/data
+chmod -R go-w /opt/yubi/data
+chown www-data2 /var/cache/yubi
+}}}
+  * add keys and API-users (see [KeyManagement])
