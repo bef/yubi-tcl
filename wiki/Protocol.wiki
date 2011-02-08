@@ -1,0 +1,12 @@
+#summary Validation Protocol and Deviations
+
+= Protocol =
+The yubi-tcl validation server is (almost) compliant to Yubico's [http://code.google.com/p/yubikey-val-server-php/wiki/ValidationProtocolV20 Validation Protocol Version 2.0]. Since this implementation is a standalone server, replication and synchronisation have been omitted.
+
+== Deviations ==
+  * A `nonce` must always be a hex string (`[0-9a-f]`)
+  * id must be an integer
+  * HMAC for requests can either be optional or be forced by server configuration.
+  * The `sl` parameter in a request is being ignored and OK-responses always contain `sl=100`. The error status `NOT_ENOUGH_ANSWERS` is not implemented.
+  * Error responses include a description in `errormsg`.
+  * OK-responses contain a normalised version of the OTP, independent from keyboard layouts, as if it was entered with a QWERTY-keyboard. (parameter `usopt`)
