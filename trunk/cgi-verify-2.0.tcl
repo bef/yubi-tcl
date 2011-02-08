@@ -103,10 +103,6 @@ proc go {} {
 	set data_use [dict get $data use]
 	set user_use [dict get $user use]
 
-	puts stderr [dict get $data ctr]
-	puts stderr [dict get $user ctr]
-	puts stderr [dict get $data use]
-	puts stderr [dict get $user use]
 	if {$data_ctr == $user_ctr && $data_use <= $user_use || $data_ctr < $user_ctr} {
 		return -code error -errorcode OTP -options {api_response REPLAYED_REQUEST} "counter deviation"
 	}
