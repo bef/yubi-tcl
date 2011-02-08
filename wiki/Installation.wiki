@@ -19,6 +19,7 @@ On Debian or Ubuntu try: {{{apt-get install tcl8.5 tcllib}}}
 || etc/yubiconfig.tcl || validation server configuration ||
 || examples/ || examples illustrating library and client ||
 || test/ || unit tests ||
+|| tools/ || key management tool ||
 || yubi/ || library files ||
 
 == Initial setup and configuration ==
