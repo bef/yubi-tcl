@@ -1,0 +1,11 @@
+#summary Quick installation guide
+
+= QuickInstall =
+
+The following few steps lead to a running validation server. However it is strongly recommended to read the elaborated version of this documentation.
+  # Install tcl >= 8.5 and tcllib; e.g. {{{apt-get install tcl8.5 tcllib}}}
+  # Extract or checkout the software to /opt/yubi-tcl.
+  # {{{mkdir /var/cache/yubi ; chown www-data:www-data /var/cache/yubi}}}
+  # Link verify-script to your cgi-bin directory; e.g. {{{ln -s /opt/yubi-tcl/cgi-verify-2.0.tcl /usr/lib/cgi-bin}}}
+  # (optional) Run a quick test: {{{/opt/yubi-tcl/test/yubilibtest.tcl}}}
+  # Edit/Add API users and yubikeys to /opt/yubi-tcl/data
