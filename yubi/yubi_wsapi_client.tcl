@@ -19,15 +19,22 @@ package require http
 
 namespace eval ::yubi::wsapi::client {
 	variable version 0.1
-	
-	proc check {otp api_id api_key {api_url "http://api.yubico.com/wsapi/2.0/verify"}} {
+	variable last_request {}
+	variable last_response {}
+
+	proc check {otp api_id api_key {api_url "http://api.yubico.com/wsapi/2.0/verify"} {extra_args {}}} {
+		variable last_request {}
+		variable last_response {}
 		set in [string tolower [string trim $otp]]
 		
 		## query api
 		set nonce [::yubi::nonce]
-		set querylist [list id $api_id otp $in nonce $nonce timestamp 1]
+		set querylist [list id $api_id otp $in nonce $nonce]
+		lappend querylist {*}$extra_args
 		set hmac [::yubi::api_hmac $::api_key $querylist]
-		set query [::http::formatQuery {*}$querylist h $hmac]
+		lappend querylist h $hmac
+		set last_request $querylist
+		set query [::http::formatQuery {*}$querylist]
 		set token [::http::geturl "${api_url}?$query" -method GET]
 		set http_response [::http::data $token]
 		set http_code [::http::code $token]
@@ -47,6 +54,7 @@ namespace eval ::yubi::wsapi::client {
 			set v [string range $line $sep_index+1 end]
 			lappend data $k $v
 		}
+		set last_response $data
 
 		## validate
 		if {![dict exists $data status] || [dict get $data status] != "OK"} {

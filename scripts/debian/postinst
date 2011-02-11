@@ -1,0 +1,7 @@
+#!/bin/sh
+set -e
+if [ "$1" = "configure" ]; then
+	ln -sf /usr/share/yubi-tcl/tools/yubi_key_mgmt.tcl /usr/bin/yubi_key_mgmt
+	ln -sf /usr/share/yubi-tcl/tools/yubi_otpinfo.tcl /usr/bin/yubi_otpinfo
+fi
+

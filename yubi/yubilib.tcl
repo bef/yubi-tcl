@@ -113,35 +113,38 @@ proc ::yubi::bin2hex {v} {
 	return $ret
 }
 
+
+## return token ID / public identity (usually 12 bytes before the 32 byte OTP)
+## note: value may be empty
+proc ::yubi::tokenid {otp} {
+	if {[string length $otp] >= 48 && [string compare $::yubi::us_keymap [string range $otp 0 15]] == 0} {
+		set otp [string range $otp 16 end]
+	}
+	return [string range $otp 0 end-32]
+}
+
 ## decode OTP
-## OTP format: [A][B]C
-##    where A is an optional mapping of 0..f to modhex digits (0 or 16 bytes) ("cbdefghijklnrtuv" on US-keymap)
-##          B is an optional fixed string (0 to 16 bytes)
-##          C is the mandatory encrypted OTP string
-proc ::yubi::mhdecode {aeskey in} {
-	variable hexdigits
-	variable us_keymap
+##   otp must be normalized modhex encoded data
+proc ::yubi::otpdecode {aeskey otp} {
+	## OTP format: [A][B]C
+	##    where A is an optional mapping of 0..f to modhex digits (0 or 16 bytes) ("cbdefghijklnrtuv" on US-keymap)
+	##          B is an optional fixed string (0 to 16 bytes)
+	##          C is the mandatory encrypted OTP string (32 bytes)
 
-	## lower case + no whitespace
-	set in [string tolower [string trim $in]]
-
-	## find keymap
-	set keymap [find_keymap $in]
-	if {[string length $in] > 32} {
-		set in [string range $in end-31 end]
+	## we are interested in section C only
+	if {[string length $otp] > 32} {
+		set otp [string range $otp end-31 end]
 	}
 
-	## unmap
-	set mhmap [lzip [split $keymap {}] [split $hexdigits {}]]
-	set hexencdata [string map $mhmap $in]
+	## check for valid modhex characters
+	if {![is_valid_modhex $otp]} {return -code error -errorcode OTP -options {api_response BAD_OTP} "invalid modhex encoding"}
 
-	## check for valid hex characters
-	## OBSOLETE: find_keymap checks for valid mapping
-	# if {![string is xdigit $hexencdata]} {return -code error -errorcode OTP -options {api_response BAD_OTP} "invalid modhex encoding"}
+	## unmap
+	set hexencdata [modhex_decode $otp]
 
 	## decrypt
 	set encdata [hex2bin $hexencdata]
-	set data [aes::aes -mode ecb -dir decrypt -key [binary format H* $aeskey] -- $encdata]
+	set data [aes::aes -mode ecb -dir decrypt -key [hex2bin $aeskey] -- $encdata]
 
 	## check crc -- must be 0xf0b8
 	set crc [ycrc $data]
@@ -153,16 +156,13 @@ proc ::yubi::mhdecode {aeskey in} {
 	set tstp [expr "0x[bin2hex [string reverse [string range $data 8 10]]]"]
 	binary scan [string range $data 11 11] c use
 	set use [expr {$use & 0xff}]
-	set otp [string map [lzip [split $hexdigits {}] [split $keymap {}]] $hexencdata]
-	set usotp [string map [lzip [split $hexdigits {}] [split $us_keymap {}]] $hexencdata]
 	return [list uid [bin2hex [string range $data 0 5]] \
 		ctr  $ctr \
 		tstp $tstp \
 		use  $use \
 		rnd  [bin2hex [string range $data 12 13]] \
 		crc  [bin2hex [string range $data 14 15]] \
-		otp  $otp \
-		usotp $usotp]
+		otp  $otp]
 }
 
 ## assemble query string sorted by key
@@ -211,16 +211,42 @@ proc ::yubi::hex2base64 {s} {
 	return [::base64::encode -maxlen 0 [hex2bin $s]]
 }
 
-## normalize/re-map modhex encoded string (e.g. dvorak -> us)
-proc ::yubi::remap_modhex {s} {
-	variable hexdigits
-	variable us_keymap
+## normalize modhex encoded string (e.g. dvorak -> us)
+proc ::yubi::normalize_modhex {s} {
+	set s [string tolower [string trim $s]]
 	set keymap [find_keymap $s]
-	set mhmap [lzip [split $keymap {}] [split $hexdigits {}]]
-	set hexencdata [string map $mhmap $s]
-	set mhunmap [lzip [split $hexdigits {}] [split $us_keymap {}]]
-	return [string map $mhunmap $hexencdata]
+	return [modhex_encode [modhex_decode $s $keymap]]
 }
+
+## decode modhex
+proc ::yubi::modhex_decode [list s [list keymap $::yubi::us_keymap]] {
+	variable hexdigits
+	set mhmap [lzip [split $keymap {}] [split $hexdigits {}]]
+	return [string map $mhmap $s]
+}
+
+## encode modhex
+proc ::yubi::modhex_encode [list s [list keymap $::yubi::us_keymap]] {
+	variable hexdigits
+	set mhmap [lzip [split $hexdigits {}] [split $keymap {}]]
+	return [string map $mhmap $s]
+}
+
+## check for valid modhex encoding
+proc ::yubi::is_valid_modhex {s} {
+	if {[expr {[string length $s] % 2}] != 0} {return 0}
+	if {[regexp -- "\[^$::yubi::us_keymap\]" $s]} {return 0}
+	return 1
+}
+
+## calculate token id from uid and aeskey
+# proc ::yubi::calculate_token_id {uid aeskey} {
+# 	# set cleartext {000000000bef1100ba880a0154fa717c}
+# 	set cleartext "${uid}06070809101112131415"
+# 	puts $cleartext
+# 	set data [aes::aes -mode ecb -dir encrypt -key [hex2bin $aeskey] -- [hex2bin $cleartext]]
+# 	return [modhex_encode [bin2hex $data]]
+# }
 
 
 package provide yubi $::yubi::version
