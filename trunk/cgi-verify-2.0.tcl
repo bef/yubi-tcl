@@ -1,4 +1,4 @@
-#!/usr/bin/tclsh
+#!/usr/bin/tclsh8.5
 #
 # Yubikey-compatible validation server for OTP validation
 #     Copyright (C) 2011 - Ben Fuhrmannek <bef@pentaphase.de>
@@ -63,8 +63,10 @@ proc go {} {
 		return -code error -errorcode OTP -options {api_response MISSING_PARAMETER} "invalid nonce"
 	}
 
-	if {![info exists params(timestamp)]} {set params(timestamp) 0}
-
+	foreach param {timestamp ext} {
+		if {![info exists params($param)]} {set params($param) 0}
+	}
+	
 	## get user data
 	if {[set user [${::yubi::wsapi::backend}::get_user $params(id)]] == ""} {
 		return -code error -errorcode OTP -options {api_response NO_SUCH_CLIENT} "no user found for id $params(id)"
@@ -79,49 +81,72 @@ proc go {} {
 		}
 	}
 	
-	## check active flag
-	if {![dict get $user active]} {
-		return -code error -errorcode OTP -options {api_response OPERATION_NOT_ALLOWED} "key deactivated"
+	## normalize otp
+	set otp [::yubi::normalize_modhex $params(otp)]
+	
+	## add otp/nonce to return data
+	set ret [list \
+		nonce $params(nonce) \
+		otp $params(otp)]
+
+	## check token id
+	set tokenid [::yubi::tokenid $otp]
+	if {$tokenid == ""} {
+		return -code error -errorcode OTP -options [list api_response BAD_OTP data $ret] "token ID missing"
 	}
 	
-	## decode otp (mhdecode checks for valid crc)
-	set data [::yubi::mhdecode [dict get $user aeskey] $params(otp)]
+	## get key data
+	set key [::${::yubi::wsapi::backend}::get_key $tokenid]
+	
+	## add apikey to return data for message authentication
+	lappend ret apikey [dict get $user apikey]
+	
+	## check active flag
+	if {![dict get $key active]} {
+		return -code error -errorcode OTP -options [list api_response OPERATION_NOT_ALLOWED data $ret] "key deactivated"
+	}
+	
+	## decode otp (otpdecode checks for valid crc)
+	set otpdata [::yubi::otpdecode [dict get $key aeskey] $otp]
 	
 	## verify secret uid
-	if {[string compare [dict get $data uid] [dict get $user private_identity]] != 0} {
-		return -code error -errorcode OTP -options {api_response BAD_OTP} "incorrect secret uid"
+	if {[string compare [dict get $otpdata uid] [dict get $key uid]] != 0} {
+		return -code error -errorcode OTP -options [list api_response BAD_OTP data $ret] "incorrect secret uid"
 	}
 	
-	## check & update otp/nonce (with normalized otp=usotp)
-	if {![${::yubi::wsapi::backend}::check_and_update_otp_nonce $params(id) [dict get $data usotp] $params(nonce)]} {
-		return -code error -errorcode OTP -options {api_response REPLAYED_REQUEST} "go away."
+	## check & update otp/nonce (with normalized otp)
+	if {![${::yubi::wsapi::backend}::check_and_update_otp_nonce $params(id) $otp $params(nonce)]} {
+		return -code error -errorcode OTP -options [list api_response REPLAYED_REQUEST data $ret] "go away."
 	}
 	
 	## check counters
-	set data_ctr [dict get $data ctr]
-	set user_ctr [dict get $user ctr]
-	set data_use [dict get $data use]
-	set user_use [dict get $user use]
+	set otpdata_ctr [dict get $otpdata ctr]
+	set key_ctr [dict get $key ctr]
+	set otpdata_use [dict get $otpdata use]
+	set key_use [dict get $key use]
 
-	if {$data_ctr == $user_ctr && $data_use <= $user_use || $data_ctr < $user_ctr} {
-		return -code error -errorcode OTP -options {api_response REPLAYED_REQUEST} "counter deviation"
+	if {$otpdata_ctr == $key_ctr && $otpdata_use <= $key_use || $otpdata_ctr < $key_ctr} {
+		return -code error -errorcode OTP -options [list api_response REPLAYED_REQUEST data $ret] "counter deviation"
 	}
 	
 	## update counters
-	${::yubi::wsapi::backend}::update_counters [dict get $user keyid] $data_ctr $data_use
+	${::yubi::wsapi::backend}::update_counters $tokenid $otpdata_ctr $otpdata_use
 	
 	# prepare response
-	set ret [list apikey [dict get $user apikey] \
+	lappend ret \
 		status OK \
-		sl 100 \
-		nonce $params(nonce) \
-		otp $params(otp) \
-		usotp [dict get $data usotp] \
-		]
+		sl 100
+	
+	## get more output for boolean parameters 'ext' and 'timestamp'
+	if {$params(ext) == "1"} {
+		lappend ret \
+			usotp $otp \
+			tokenid $tokenid
+	}
 	if {$params(timestamp) == "1"} {
-		lappend ret timestamp [dict get $data tstp] \
-		sessioncounter $data_ctr \
-		sessionuse $data_use
+		lappend ret timestamp [dict get $otpdata tstp] \
+		sessioncounter $otpdata_ctr \
+		sessionuse $otpdata_use
 	}
 
 	return $ret
@@ -134,6 +159,9 @@ if {[catch {
 	array set response [go]
 } result opts]} {
 	if {$::errorCode == "OTP"} {
+		if {[dict exists $opts data]} {
+			array set response [dict get $opts data]
+		}
 		set response(status) [dict get $opts api_response]
 		set response(errormsg) $result
 	} else {

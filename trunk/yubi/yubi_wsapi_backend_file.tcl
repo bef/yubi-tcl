@@ -22,11 +22,18 @@ namespace eval ::yubi::wsapi::backend_file {
 	set ::yubi::wsapi::backend [namespace current]
 	variable version 0.1
 	variable config
+	
+	## configuration
 	array set config {datadir "/opt/yubi/data" cachedir "/var/cache/yubi"}
 	if {[info exists ::config(wsapi_backend_file)]} {
 		array set config $::config(wsapi_backend_file)
 	}
+	if {![info exists config(userdir)]} {set config(userdir) [file join $config(datadir) users]}
+	if {![info exists config(keydir)]} {set config(keydir) [file join $config(datadir) keys]}
+	if {![info exists config(counterdir)]} {set config(counterdir) [file join $config(cachedir) counters]}
 	
+	## helper functions
+
 	proc parse_datafile {fn} {
 		set data {}
 		set f [open $fn r]
@@ -50,7 +57,6 @@ namespace eval ::yubi::wsapi::backend_file {
 
 		foreach key $mandatory_keys {
 			if {![dict exists $data $key]} {
-				# return -code error -errorcode WS "missing entry '$key' in '$filename'"
 				puts stderr "missing entry '$key' in '$filename'"
 				return 0
 			}
@@ -58,7 +64,6 @@ namespace eval ::yubi::wsapi::backend_file {
 		
 		foreach key [dict keys $data] {
 			if {![lsearch -exact $all_keys $key] == -1} {
-				# return -code error -errorcode WS "unknown entry '$key' in '$filename'"
 				puts stderr "unknown entry '$key' in '$filename'"
 				return 0
 			}
@@ -67,9 +72,9 @@ namespace eval ::yubi::wsapi::backend_file {
 		return 1
 	}
 	
-	proc get_counters {keyid} {
+	proc get_counters {tokenid} {
 		variable config
-		set counter_file [file join $config(cachedir) counters $keyid]
+		set counter_file [file join $config(counterdir) $tokenid]
 		if {![file isfile $counter_file]} {
 			return {0 0}
 		}
@@ -84,14 +89,34 @@ namespace eval ::yubi::wsapi::backend_file {
 		return $line
 	}
 	
-	## API ##
+	proc glob_filter {dir {pattern {}}} {
+		if {[llength $pattern] == 0} {set pattern "*"}
+		if {[catch {
+			set files [glob -directory $dir {*}$pattern]
+		} result opts]} {return}
+		return $files
+	}
 	
-	## return api and yubikey data for given api-id
+	proc store_kv {fn data} {
+		set f [open $fn w]
+		puts $f "## created/modified: [clock format [clock seconds] -format {%Y-%m-%d %H:%M:%S UTC} -timezone :UTC]"
+		foreach {k v} $data {
+			puts $f "$k = $v"
+		}
+		close $f
+	}
+	
+	
+	##
+	## API interface
+	##
+	
+	## return api data for given api-id
 	proc get_user {id} {
 		variable config
 		
 		## get api user data
-		set user_file [file join $config(datadir) users $id]
+		set user_file [file join $config(userdir) $id]
 		
 		if {![file isfile $user_file]} {return}
 		set user_data [parse_datafile $user_file]
@@ -99,17 +124,15 @@ namespace eval ::yubi::wsapi::backend_file {
 			return
 		}
 		
-		if {[string length [dict get $user_data keyid]] == 0} {
-			# return -code error -errorcode WS "no key associated with user in '$user_file'"
-			puts stderr "no key associated with user in '$user_file'"
-			return
-		}
-		
-		## get yubikey data
-		set key_file [file join $config(datadir) keys [dict get $user_data keyid]]
+		return $user_data
+	}
+	
+	## return key data
+	proc get_key {tokenid {with_counters 1}} {
+		variable config
+		set key_file [file join $config(keydir) $tokenid]
 		if {![file isfile $key_file]} {
-			# return -code error -errorcode WS "invalid key file '$key_file' for user id $id"
-			puts stderr "invalid key file '$key_file' for user id $id"
+			puts stderr "invalid key file '$key_file'"
 			return
 		}
 		
@@ -118,14 +141,16 @@ namespace eval ::yubi::wsapi::backend_file {
 			return
 		}
 		
-		## get key's counters
-		set counters [get_counters [dict get $user_data keyid]]
-		set counters_data [list ctr [lindex $counters 0] use [lindex $counters 1]]
+		if {$with_counters} {
+			## get key's counters
+			set counters [get_counters $tokenid]
+			set counters_data [list ctr [lindex $counters 0] use [lindex $counters 1]]
 		
-		## merge data
-		set data [dict merge $::yubi::wsapi::data_template $user_data $key_data $counters_data]
+			## merge data
+			set key_data [dict merge $::yubi::wsapi::key_template $key_data $counters_data]
+		}
 		
-		return $data
+		return $key_data
 	}
 	
 	## detect replayed otp/nonce -> return 0
@@ -155,15 +180,82 @@ namespace eval ::yubi::wsapi::backend_file {
 	## update global and session counters
 	proc update_counters {keyid ctr use} {
 		variable config
-		set counters_dir [file join $config(cachedir) counters]
-		set counter_file [file join $counters_dir $keyid]
-		if {![file isdirectory $counters_dir]} {
-			file mkdir $counters_dir
+		set counter_file [file join $config(counterdir) $keyid]
+		if {![file isdirectory $config(counterdir)]} {
+			file mkdir $config(counterdir)
 		}
 		set f [open $counter_file w]
 		puts -nonewline $f "$ctr $use"
 		close $f
 	}
+	
+	##
+	## key management interface
+	##
+	
+	## return {id {k v ...}} user data
+	proc get_users {ids} {
+		variable config
+		set ret {}
+		foreach fn [glob_filter $config(userdir)] {
+			set id [lindex [file split $fn] end]
+			lappend ret $id [get_user $id]
+		}
+		return $ret
+	}
+	
+	## return {id {k v ...}} key data
+	proc get_keys {tokenids} {
+		variable config
+		set ret {}
+		foreach fn [glob_filter $config(keydir)] {
+			set id [lindex [file split $fn] end]
+			lappend ret $id [get_key $id 0]
+		}
+		return $ret
+	}
+	
+	## check if key exists
+	proc key_exists {tokenid} {
+		variable config
+		set keyfile [file join $config(keydir) $tokenid]
+		return [file exists $keyfile]
+	}
+	
+	## check if user exists
+	proc user_exists {uid} {
+		variable config
+		set userfile [file join $config(userdir) $uid]
+		return [file exists $userfile]
+	}
+
+	## store key
+	proc store_key {tokenid data} {
+		variable config
+		set keyfile [file join $config(keydir) $tokenid]
+		store_kv $keyfile $data
+	}
+	
+	## store user
+	proc store_user {uid data} {
+		variable config
+		set userfile [file join $config(userdir) $uid]
+		store_kv $userfile $data
+	}
+	
+	## propose new api user id
+	proc get_new_userid {} {
+		variable config
+		set uid 0
+		if {[set files [glob_filter $config(userdir) "*"]] != ""} {
+			foreach fn $files {
+				set fn [lindex [file split $fn] end]
+				if {![string is digit $fn]} {continue}
+				if {$fn >= $uid} {set uid [expr {$fn + 1}]}
+			}
+		}
+		return $uid
+	}	
 	
 }
 

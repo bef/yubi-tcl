@@ -1,4 +1,4 @@
-#!/usr/bin/tclsh
+#!/usr/bin/tclsh8.5
 set auto_path [linsert $auto_path 0 [file join [file dirname $::argv0] ..]]
 package require tcltest
 package require yubi
@@ -61,12 +61,12 @@ namespace eval ::yubi::test {
 		::yubi::bin2hex {abcd}
 	} -result {61626364}
 
-	test mhdecode-1 {(incorrect CRC)} -body {
-		api_response_error {::yubi::mhdecode 1f086cb16e52ee60e5f9755a54e1b5e5 ljvjdrtugibnjvlcidelcblvjeikriju}
+	test otpdecode-1 {(incorrect CRC)} -body {
+		api_response_error {::yubi::otpdecode 1f086cb16e52ee60e5f9755a54e1b5e5 ljvjdrtugibnjvlcidelcblvjeikriju}
 	} -result {BAD_OTP}
 
-	test mhdecode-2 {+} -body {
-		dict get [::yubi::mhdecode 1f086cb16e52ee60e5f9755a54e1b5e5 ljvjdrtugibnjvlcidelcblvjeikriiu] uid
+	test otpdecode-2 {+} -body {
+		dict get [::yubi::otpdecode 1f086cb16e52ee60e5f9755a54e1b5e5 ljvjdrtugibnjvlcidelcblvjeikriiu] uid
 	} -result {010203040506}
 	
 	test api_hmac {} -body {
@@ -94,10 +94,34 @@ namespace eval ::yubi::test {
 		::yubi::hex2base64 1f086cb16e52ee60e5f9755a54e1b5e5
 	} -result {HwhssW5S7mDl+XVaVOG15Q==}
 	
-	test remap_modhex {} -body {
-		::yubi::remap_modhex {knbunbebi.xgexxbpxdkhihttub.gkub}
+	test normalize_modhex {} -body {
+		::yubi::normalize_modhex {knbunbebi.xgexxbpxdkhihttub.gkub}
 	} -result {vlnflndngebudbbnrbhvjgjkkfneuvfn}
 
+	test modhex_encode {} -body {
+		::yubi::modhex_encode $::yubi::hexdigits
+	} -result $::yubi::us_keymap
+
+	test modhex_decode {} -body {
+		::yubi::modhex_decode $::yubi::us_keymap
+	} -result $::yubi::hexdigits
+	
+	test tokenid {} -body {
+		::yubi::tokenid cbdefghijklnrtuvxxxxxxxxxxxxABCDEFGHIJKLMNOPQRSTUVWXYZabcdef
+	} -result {xxxxxxxxxxxx}
+	
+	test is_valid_modhex-1 {+} -body {
+		::yubi::is_valid_modhex ljvjdrtugibnjvlcidelcblvjeikriiu
+	} -result 1
+
+	test is_valid_modhex-2 {(wrong size)} -body {
+		::yubi::is_valid_modhex ljvjdrugibnjvlcidelcblvjeikriiu
+	} -result 0
+
+	test is_valid_modhex-3 {(wrong character)} -body {
+		::yubi::is_valid_modhex lj.jdrtugibnjvlcidelcblvjeikriiu
+	} -result 0
+	
 	
 	cleanupTests
 }

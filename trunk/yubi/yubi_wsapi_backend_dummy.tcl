@@ -28,9 +28,13 @@ namespace eval ::yubi::wsapi::backend_dummy {
 			apikey da5d1a9407db6df1b547c0daefb6298a \
 			service_description {fnord secure email provider} \
 			force_hmac 1 \
-			keyid 12345 \
+			]
+	}
+	
+	proc get_key {tokenid} {
+		return [list \
 			aeskey a75bab9004c818850b0b549e32c4491c \
-			private_identity 000000000bef \
+			uid 000000000bef \
 			ctr 0 \
 			use 0 \
 			active 1 \

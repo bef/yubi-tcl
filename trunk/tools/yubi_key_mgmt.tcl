@@ -1,6 +1,6 @@
-#!/usr/bin/tclsh
+#!/usr/bin/tclsh8.5
 #
-# key management tool for web-service API file backend
+# key management tool for web-service API backend
 #     Copyright (C) 2011 - Ben Fuhrmannek <bef@pentaphase.de>
 # 
 #     This program is free software: you can redistribute it and/or modify
@@ -29,13 +29,8 @@ foreach etc [list /etc/yubi /opt/yubi/etc /opt/yubi-tcl/etc /usr/lib/yubi-tcl/et
 set auto_path [linsert $auto_path 0 {*}$::config(auto_path)]
 set auto_path [linsert $auto_path 0 [file join [file dirname $::argv0] ..]]
 package require yubi
-package require yubi::wsapi::backend_file
+package require yubi::wsapi::backend_${::config(wsapi_backend)}
 
-##
-set datadir [dict get $::config(wsapi_backend_file) datadir]
-set keydir [file join $datadir keys]
-set userdir [file join $datadir users]
-##
 
 
 ## command registry
@@ -74,13 +69,6 @@ cmd {h*} {help} {print_help}
 
 ## command implementation helper functions
 
-proc glob_filter {dir pattern} {
-	if {[llength $pattern] == 0} {set pattern "*"}
-	if {[catch {
-		set files [glob -directory $dir {*}$pattern]
-	} result opts]} {return}
-	return $files
-}
 
 proc print_kv {data {headline {}} {indent {  }}} {
 	if {$headline != ""} {puts $headline}
@@ -113,53 +101,41 @@ proc read_text {text {default ""}} {
 	return $input
 }
 
-proc store_kv {fn data} {
-	set f [open $fn w]
-	puts $f "## created/modified: [clock format [clock seconds] -format {%Y-%m-%d %H:%M:%S UTC} -timezone :UTC]"
-	foreach {k v} $data {
-		puts $f "$k = $v"
-	}
-	close $f
-}
 
 ## commands
 
-cmd {l* u*} {list users [pattern]} {
-	if {[set files [glob_filter $::userdir $args]] == ""} {
+cmd {l* u*} {list users [id]} {
+	set users [${::yubi::wsapi::backend}::get_users $args]
+	if {$users == ""} {
 		puts "empty."
 		return
 	}
-
-	foreach fn $files {
-		set user_data [::yubi::wsapi::backend_file::parse_datafile $fn]
-		print_kv $user_data "====\[ user [lindex [file split $fn] end] \]===="
-
-		if {![dict exists $user_data keyid]} {continue}
-		set keyfile [file join $::keydir [dict get $user_data keyid]]
-		if {![file isfile $keyfile]} {
-			puts "  ** WARNING ** invalid keyfile: $keyfile"
-			continue
+	
+	foreach {id user_data} $users {
+		if {[dict exists $user_data apikey]} {
+			lappend user_data {## apikey (BASE64)} [::yubi::hex2base64 [dict get $user_data apikey]]
 		}
-
-		set key_data [::yubi::wsapi::backend_file::parse_datafile $keyfile]
-		print_kv $key_data "  == key [lindex [file split $keyfile] end]:" "    "
+		print_kv $user_data "====\[ user $id \]===="
 	}
 }
 
 cmd {l* k*} {list keys [pattern]} {
-	if {[set files [glob_filter $::keydir $args]] == ""} {
+	set keys [${::yubi::wsapi::backend}::get_keys $args]
+	if {$keys == ""} {
 		puts "empty."
 		return
 	}
-
-	foreach fn $files {
-		set key_data [::yubi::wsapi::backend_file::parse_datafile $fn]
-		print_kv $key_data "====\[ user [lindex [file split $fn] end] \]===="
+	
+	foreach {id key_data} $keys {
+		print_kv $key_data "====\[ key token id $id \]===="
 	}
 }
 
 proc yubikey_export {data} {
-	set cmd [format "ykpersonalize -a%s -osend-ref -ouid=%s" [dict get $data aeskey] [dict get $data private_identity]]
+	set cmd [format "ykpersonalize -a%s -osend-ref -ouid=%s" [dict get $data aeskey] [dict get $data uid]]
+	if {[dict exists $data publicid] && [dict get $data publicid] != ""} {
+		set cmd "$cmd -ofixed=h:[dict get $data publicid]"
+	}
 	puts "The following command will be executed:\n  $cmd"
 	set cmdaddon [read_text "additional arguments?" ""]
 	set cmd "$cmd $cmdaddon"
@@ -168,16 +144,27 @@ proc yubikey_export {data} {
 	}
 }
 
-proc new_key {} {
-	## get key id
-	set keyid [read_text "key id?"]
-	if {$keyid == "" || ![string is digit $keyid]} {
-		puts ":( invalid key id"
+cmd {n* k*} {new key} {
+	## get token id - 0x28, 16-bit user id, 24-bit key id
+	set public_identity "28[string range [::yubi::nonce] 0 9]"
+	set public_identity [read_text "public identity ('-' = empty)?" $public_identity]
+	if {$public_identity == "-"} {set public_identity ""}
+	if {![string is xdigit $public_identity] || [string length $public_identity] > 16} {
+		puts ":( invalid tokenid"
 		return
 	}
-	set keyfile [file join $::keydir $keyid]
-	if {[file exists $keyfile]} {
-		puts ":( key already exists"
+	set tokenid [::yubi::modhex_encode $public_identity]
+	
+	## exists?
+	if {[${::yubi::wsapi::backend}::key_exists $tokenid]} {
+		puts ":( key exists already"
+		return
+	}
+	
+	## get private identity (12 bytes; to be encrypted)
+	set uid [read_text "private identity (uid)?" [string range [::yubi::nonce] 0 11]]
+	if {![string is xdigit $uid] || [string length $uid] != 12} {
+		puts ":( invalid uid"
 		return
 	}
 	
@@ -188,10 +175,11 @@ proc new_key {} {
 		return
 	}
 	
-	## get private identity (12 bytes; to be encrypted)
-	set private_identity [read_text "private identity?" [string range [::yubi::nonce] 0 11]]
-	if {![string is xdigit $private_identity] || [string length $private_identity] != 12} {
-		puts ":( invalid private identity"
+
+	## get serialnr
+	set serialnr [read_text "yubikey serialnr (optional)?" 0]
+	if {![string is digit $serialnr] || [string length $serialnr] > 16} {
+		puts ":( invalid serialnr"
 		return
 	}
 	
@@ -199,46 +187,44 @@ proc new_key {} {
 	set usertoken [read_text "usertoken?" "foo@example.com"]
 	
 	## merge data
-	set key_data [list aeskey $aeskey private_identity $private_identity active 1 usertoken $usertoken]
+	set key_data [list \
+		aeskey $aeskey \
+		uid $uid \
+		active 1 \
+		usertoken $usertoken \
+		serialnr $serialnr \
+		publicid $public_identity]
 
 	## confirm
-	print_kv $key_data "====\[ new key $keyid \]===="
+	print_kv $key_data "====\[ new key $tokenid \]===="
 	if {[read_yn "Commit?" y] != "y"} {return}
-	
-	## create file
-	store_kv $keyfile $key_data
 
-	if {[read_yn "Write key data to physical device?"] == "y"} {
+	## store key
+	${::yubi::wsapi::backend}::store_key $tokenid $key_data
+
+	if {[read_yn "Write key data to physical device?" n] == "y"} {
 		yubikey_export $key_data
 	}
 
-	return [list keyid $keyid data $key_data]
+	return [list tokenid $tokenid data $key_data]
 }
-cmd {n* k*} {new key} {return [new_key]}
 
-cmd {n* u*} {new user} {
-	## find new user id
-	set uid 0
-	if {[set files [glob_filter $::userdir "*"]] != ""} {
-		foreach fn $files {
-			set fn [lindex [file split $fn] end]
-			if {![string is digit $fn]} {continue}
-			if {$fn >= $uid} {set uid [expr {$fn + 1}]}
-		}
-	}
-	
+
+cmd {n* u*} {new user} {	
 	## get uid
+	set uid [${::yubi::wsapi::backend}::get_new_userid]
 	set uid [read_text "new API user id?" $uid]
 	if {$uid == "" || ![string is digit $uid]} {
 		puts ":( invalid key id"
 		return
 	}
-	set userfile [file join $::userdir $uid]
-	if {[file exists $userfile]} {
-		puts ":( user already exists"
+	
+	## exists?
+	if {[${::yubi::wsapi::backend}::user_exists $uid]} {
+		puts ":( user exists already"
 		return
 	}
-	
+
 	## get apikey
 	set apikey [read_text "new AES API key?" [::yubi::nonce]]
 	if {![string is xdigit $apikey] || [string length $apikey] != 32} {
@@ -253,56 +239,29 @@ cmd {n* u*} {new user} {
 	set force_hmac [read_yn "force HMAC?" "y"]
 	set force_hmac [expr {$force_hmac == "y"}]
 	
-	## get key id
-	set keyid [read_text "key id?" "new"]
-	if {$keyid == "new"} {
-		## generate new key
-		puts "====\[ generating new key \]===="
-		set key_data [new_key]
-		if {$key_data == ""} {
-			puts ":( no key"
-			return
-		}
-		set keyid [dict get $key_data keyid]
-		set key_data [dict get $key_data data]
-	} else {
-		## use existing key
-		if {$keyid == "" || ![string is digit $keyid]} {
-			puts ":( invalid key id"
-			return
-		}
-		set keyfile [file join $::keydir $keyid]
-		if {![file exists $keyfile]} {
-			puts ":( key does not exist"
-			return
-		}
-		set key_data [::yubi::wsapi::backend_file::parse_datafile $keyfile]
-	}
-	
-	set user_data [list apikey $apikey service_description $service_description force_hmac $force_hmac keyid $keyid]
+	set user_data [list apikey $apikey service_description $service_description force_hmac $force_hmac]
 	print_kv $user_data "====\[ new user $uid \]===="
-	print_kv $key_data "  ==\[ associated key $keyid \]=="
 	
 	if {[read_yn "Commit?" y] != "y"} {return}
 	
-	## create file
-	store_kv $userfile $user_data
+	## create user
+	${::yubi::wsapi::backend}::store_user $uid $user_data
 	
 	return [list uid $uid data $user_data]
 }
 
 cmd {e* k*} {export key <id>} {
-	set keyid [string trim $args]
-	if {$keyid == "" || ![string is digit $keyid]} {
+	set tokenid [string trim $args]
+	if {$tokenid == "" || ![::yubi::is_valid_modhex $tokenid]} {
 		puts ":( no id"
 		return
 	}
-	set keyfile [file join $::keydir $keyid]
-	if {![file exists $keyfile]} {
+	set key_data [${::yubi::wsapi::backend}::get_key $tokenid]
+	if {$key_data == ""} {
 		puts ":( key does not exist"
 		return
 	}
-	set key_data [::yubi::wsapi::backend_file::parse_datafile $keyfile]
+
 	yubikey_export $key_data
 }
 
