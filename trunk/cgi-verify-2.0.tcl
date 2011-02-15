@@ -25,7 +25,7 @@ foreach etc [list /etc/yubi /opt/yubi/etc /opt/yubi-tcl/etc /usr/lib/yubi-tcl/et
 		break
 	}
 }
-set auto_path [linsert $auto_path 0 {*}$::config(auto_path)]
+set auto_path [linsert $auto_path 0 [file join [file dirname [info script]]] {*}$::config(auto_path)]
 
 ##
 package require yubi
