@@ -98,7 +98,7 @@ namespace eval ::yubi::wsapi::backend_file {
 	}
 	
 	proc store_kv {fn data} {
-		set f [open $fn w]
+		set f [open $fn w 0640]
 		puts $f "## created/modified: [clock format [clock seconds] -format {%Y-%m-%d %H:%M:%S UTC} -timezone :UTC]"
 		foreach {k v} $data {
 			puts $f "$k = $v"
