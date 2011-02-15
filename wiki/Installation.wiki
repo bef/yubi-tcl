@@ -18,8 +18,9 @@ On Debian or Ubuntu try: {{{apt-get install tcl8.5 tcllib}}}
 || data/ || user and key storage for file backend ||
 || etc/yubiconfig.tcl || validation server configuration ||
 || examples/ || examples illustrating library and client ||
+|| scripts || package maintenance and misc. ||
 || test/ || unit tests ||
-|| tools/ || key management tool ||
+|| tools/ || key management and debugging tools ||
 || yubi/ || library files ||
 
 == Initial setup and configuration ==
@@ -34,11 +35,11 @@ Library files located in yubi-tcl/yubi must be found by the Tcl installation. Tc
 Next, copy or symlink cgi-verify-2.0.tcl to your cgi-bin directory, e.g.
 {{{ln -s /opt/yubi-tcl/cgi-verify-2.0.tcl /usr/lib/cgi-bin/yubiverify2.0.tcl}}}.
 
-Edit `yubiconfig.tcl` to suit your installation:
+Edit `etc/yubiconfig.tcl` to suit your installation:
   * add the location of the `yubi/` library directory to auto_path (as described above), e.g.
   {{{set ::config(auto_path) {/home/yubi/apps/yubi-tcl} }}}
   * set data and cache directories for the file backend:
-  {{{set ::config(wsapi_backend_file) {datadir "/opt/yubi/data" cachedir "/var/cache/yubi"} }}}
+  {{{set ::config(wsapi_backend_file) {datadir "/opt/yubi-tcl/data" cachedir "/var/cache/yubi"} }}}
 
 == Webserver setup ==
 This is a minimalistic example configuration for the [http://www.boa.org/ boa webserver]:
@@ -63,8 +64,11 @@ Note the dedicated User and Group `www-data2` and cgi-bin directory `/usr/lib/cg
   {{{mkdir -p /var/cache/yubi /opt/yubi/data/keys /opt/yubi/data/users}}}
   * Set permissions (www-data2 is the assumed user and group name running a webserver):
 {{{
-chgrp -R www-data2 /opt/yubi/data
-chmod -R go-w /opt/yubi/data
+chgrp -R www-data2 /opt/yubi-tcl/data
+chmod 2750 /opt/yubi-tcl/data/keys /opt/yubi-tcl/data/users
+chmod 640 /opt/yubi-tcl/data/keys/* /opt/yubi-tcl/data/users/*
 chown www-data2 /var/cache/yubi
 }}}
   * add keys and API-users (see [KeyManagement])
+Note: For security reasons it is recommended to use a separate user account (here `www-data2`) for running the validation server. Also, the `data` directory should be read-only for `www-data2`.
+

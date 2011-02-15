@@ -1,47 +1,56 @@
 #summary About API users and keys
 
 = KeyManagement =
-For the time being there is only one data backend available for production use - the file backend.
+The following backends are available:
+  * *file backend*: data is stored as files on the filesystem.
+  * *dummy backend*: data is stored within tcl. This module is for debugging only.
 
 == File backend ==
 === Users ===
-Each external user/application combination is associated with one API user - e.g. user _foo_ at `example.com/blog` would have an API user entry and user _bar_ at `example.com/shop` would have another user entry.
+Each external application as associated with one or more API users.
 
-API Users are referenced by a user ID, AES-API-Key and the validation server's URL. This information is stored on the application side - e.g. `example.com/blog` - for a specific user - e.g. `foo`.
+API Users are referenced by a user ID, AES-API-Key and the validation server's URL. This information is stored on the application side - e.g. `example.com/blog` - either for an entire site, or for each application user separately.
 
-The configuration resides under `data/users`.
+The configuration resides under `data/users/X`, where X is the user ID.
 
+Fields:
+|| apikey || mandatory || hex-encoded API key (32 xdigits) ||
+|| service_description || optional || descriptive reference to the associated service (string) ||
+|| force_hmac || optional || API calls must be signed (0|1; defaults to 0) ||
+
+* Comments are prefixed by _#_.
+* 
 Example `data/users/1`:
 {{{
+# example configuration
 apikey = da5d1a9407db6df1b547c0daefb6298a
 service_description = fnord secure email provider
 force_hmac = 1
-
-#comment
-
-keyid = 510459
 }}}
 
-  * The attributes `apikey` and `keyid` are mandatory.
-  * `apikey` is the hex encoded AES key
-  * `keyid` is a reference to the associated yubikey configuration.
-  * `service_description` is a descriptive reference to the associated service, but not processed any further.
-  * Comments are prefixed by _#_.
 
 === Keys ===
-Keys reside under `data/keys`.
+Keys reside under `data/keys/Y`, where Y is the modhex-encoded public identity.
 
-Example `data/keys/510459`:
+Fields:
+|| aeskey || mandatory || hex-encoded AES key (32 xdigits) ||
+|| uid || mandatory || hex-encoded private identity (12 xdigits) ||
+|| publicid || mandatory || hex-encoded public identity (0-16 xdigits, 12 digits for compatibility) ||
+|| active || optional || key can be used? (0|1; defaults to 1) ||
+|| serialnr || optional || reference to the key's serial nr (string) ||
+|| usertoken || optional || reference to the keyholder, e.g. email address ||
+
+Example `data/keys/djiehevlhiti`:
 {{{
+## created/modified: 2011-02-11 02:30:19 UTC
 aeskey = a75bab9004c818850b0b549e32c4491c
-private_identity = 000000000bef
+uid = 679fc91ff65d
 active = 1
 usertoken = foo@example.com
+serialnr = 510459
+publicid = 287363fa67d7
 }}}
 
-  * The attributes `aeskey` and `private_identity` are mandatory, `active` defaults to `1`. The `usertoken` is only a reference to the actual keyholder and not processed further.
-  * `aeskey` and `private_identity` are hex encoded values.
-  * Key ID is the filename.
 
 === Programming Keys ===
 Example with [http://code.google.com/p/yubikey-personalization/ ykpers]:
