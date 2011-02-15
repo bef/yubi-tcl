@@ -1,5 +1,7 @@
 #!/usr/bin/tclsh8.5
-set auto_path [linsert $auto_path 0 [file join [file dirname $::argv0] ..]]
+if {[lsearch -exact $auto_path {..}] < 0} {
+	set auto_path [linsert $auto_path 0 [file join [file dirname [info script]] ..]]
+}
 package require tcltest
 package require yubi
 
@@ -125,3 +127,4 @@ namespace eval ::yubi::test {
 	
 	cleanupTests
 }
+namespace delete ::yubi::test
