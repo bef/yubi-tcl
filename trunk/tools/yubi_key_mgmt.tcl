@@ -132,13 +132,17 @@ cmd {l* k*} {list keys [pattern]} {
 }
 
 proc yubikey_export {data} {
-	set cmd [format "ykpersonalize -a%s -osend-ref -ouid=%s" [dict get $data aeskey] [dict get $data uid]]
+	set cmd [format "ykpersonalize -a%s -ouid=%s" [dict get $data aeskey] [dict get $data uid]]
 	if {[dict exists $data publicid] && [dict get $data publicid] != ""} {
 		set cmd "$cmd -ofixed=h:[dict get $data publicid]"
+	}
+	if {[read_yn "Send reference encoding as first 16 bytes (SEND_REF)?" n] == "y"} {
+		set cmd "$cmd -osend-ref"
 	}
 	puts "The following command will be executed:\n  $cmd"
 	set cmdaddon [read_text "additional arguments?" ""]
 	set cmd "$cmd $cmdaddon"
+	if {[read_yn "Execute?" y] != "y"} {return}
 	if {[catch {exec {*}$cmd} result opts]} {
 		puts "error: $result"
 	}
@@ -256,7 +260,7 @@ cmd {e* k*} {export key <id>} {
 		puts ":( no id"
 		return
 	}
-	set key_data [${::yubi::wsapi::backend}::get_key $tokenid]
+	set key_data [${::yubi::wsapi::backend}::get_key $tokenid 0]
 	if {$key_data == ""} {
 		puts ":( key does not exist"
 		return

@@ -116,7 +116,7 @@ proc go {} {
 	
 	## check & update otp/nonce (with normalized otp)
 	if {![${::yubi::wsapi::backend}::check_and_update_otp_nonce $params(id) $otp $params(nonce)]} {
-		return -code error -errorcode OTP -options [list api_response REPLAYED_REQUEST data $ret] "go away."
+		return -code error -errorcode OTP -options [list api_response REPLAYED_OTP data $ret] "go away."
 	}
 	
 	## check counters
@@ -126,7 +126,7 @@ proc go {} {
 	set key_use [dict get $key use]
 
 	if {$otpdata_ctr == $key_ctr && $otpdata_use <= $key_use || $otpdata_ctr < $key_ctr} {
-		return -code error -errorcode OTP -options [list api_response REPLAYED_REQUEST data $ret] "counter deviation"
+		return -code error -errorcode OTP -options [list api_response REPLAYED_OTP data $ret] "counter deviation"
 	}
 	
 	## update counters
@@ -188,7 +188,16 @@ if {[info exists response(apikey)]} {
 	lappend responsevalues h [::yubi::api_hmac $response(apikey) $responsevalues]
 }
 
+## ykclient compatibility mode -- print "status=" as last element
+## (http://code.google.com/p/yubico-c-client)
+if {[dict exists $responsevalues status]} {
+	set status [dict get $responsevalues status]
+	set responsevalues [dict remove $responsevalues status]
+	lappend responsevalues status $status
+}
+
 ## print response
 foreach {k v} $responsevalues {
 	puts "$k=$v"
+	if {$::config(debug)} {puts stderr "$k=$v"}
 }
