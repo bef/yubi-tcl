@@ -58,7 +58,7 @@ print_kv [list \
 	"normalized input" [::yubi::modhex_encode [::yubi::modhex_decode $orig_input $keymap]] \
 	"modhex-decoded input" [::yubi::modhex_decode $orig_input $keymap] \
 	keymap $keymap \
-	"public identity" "$public_identity | [::yubi::modhex_encode $public_identity] (modhex)" \
+	"public identity" "$public_identity | [::yubi::modhex_encode $public_identity] (modhex) | [::yubi::modhex_encode $public_identity $::yubi::dvorak_keymap] (modhex dvorak)" \
 	OTP $input \
 	]
 	
