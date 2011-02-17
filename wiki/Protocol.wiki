@@ -9,6 +9,11 @@ The yubi-tcl validation server is (almost) compliant to Yubico's [http://code.go
   * HMAC for requests can either be optional or be forced by server configuration.
   * The `sl` parameter in a request is being ignored and OK-responses always contain `sl=100`. The error status `NOT_ENOUGH_ANSWERS` is not implemented.
   * Error responses include a description in `errormsg`.
-  * status=REPLAYED_REQUEST is implemented as status=REPLAYED_OTP to be compatible with most implementations.
 If an additional parameter `ext=1` is given with the request, then
   * OK-responses contain a normalised version of the OTP, independent from keyboard layouts, as if it was entered with a QWERTY-keyboard. (parameter `usopt`)
+
+== Protocol Version 1.1 Compatibility ==
+yubi-tcl supports [http://code.google.com/p/yubikey-val-server-php/wiki/ValidationProtocolV11 Validation Protocol Version 1.1] by appending v11compatible=1 to the API request, e.g. 
+{{{
+http://localhost:88/cgi-bin/yubiverify2.0.tcl?id=%d&otp=%s&v11compatible=1
+}}}

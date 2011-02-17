@@ -1,0 +1,33 @@
+#summary How to use yubi-tcl with your setup, e.g. PAM
+
+= Integration =
+== Linux-PAM ==
+  * Download and install [http://code.google.com/p/yubico-pam/ yubico-pam]
+  * Create or use a Yubikey emitting 44 OTP characters (12 public identity + 32 encrypted OTP), e.g. `djiehevlhitindetjnfclldbdngihdketubiguvggfgj`
+  * Extract your yubikey's token ID (first 12 characters of the OTP): `djiehevlhiti`
+  * Create/Change your _authfile_ as described in [http://code.google.com/p/yubico-pam/wiki/YubikeyAndSSHViaPAM YubikeyAndSSHViaPAM];
+  * If you are using a keyboard layout not covered by Yubico's modhex encoding, e.g. Dvorak, then you may like to add several token IDs for the same key to your _authfile_:
+{{{
+root:djiehevlhiti:ehc.d.kndcyc
+}}}
+  * Configure PAM, e.g. /etc/pam.d/sshd:
+{{{
+auth sufficient pam_yubico.so authfile=/etc/yubikeyid id=2 key=rj63rneL80QxG/nM6Ep7jQ== url=http://localhost:88/cgi-bin/yubiverify2.0.tcl?id=%d&otp=%s&v11compatible=1 debug
+}}}
+This example PAM configuration line grants access with yubikey authentication (one factor), if listed as first _auth_ line (see `man pam.d`, keyword `sufficient`).
+
+Parameters include `id` and `key` for the validation API. Both can be printed out with the _yubi_key_mgmt_ tool:
+{{{
+$ ./tools/yubi_key_mgmt.tcl list user 2
+====[ user 2 ]====
+  apikey               ae3eb7ae778bf344311bf9cce84a7b8d
+  service_description  devvm PAM
+  force_hmac           1
+  ## apikey (BASE64)   rj63rneL80QxG/nM6Ep7jQ==
+}}}
+The API URL must be compatible with [http://code.google.com/p/yubico-c-client ykclient], meaning
+  # all query parameters must be sorted by key AND
+  # v11compatible=1 turns on validatio protocol version 1.1 compatibility mode.
+`debug` is for debugging only and should be removed on production systems.
+
+Additional parameters and documentation can be found on the [http://code.google.com/p/yubico-pam/wiki/ReadMe yubico-pam readme page].

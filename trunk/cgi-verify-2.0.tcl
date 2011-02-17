@@ -39,7 +39,9 @@ package require ncgi
 
 proc go {} {
 	## check for required parameters
-	foreach {param} {id otp nonce} {
+	set required_parameters {id otp}
+	if {[::ncgi::value v11compatible] != "1"} {lappend required_parameters nonce}
+	foreach {param} $required_parameters {
 		if {[::ncgi::value $param] == ""} {
 			return -code error -errorcode OTP -options {api_response MISSING_PARAMETER} "missing parameter: $param"
 		}
@@ -47,8 +49,17 @@ proc go {} {
 	
 	## parameter validation
 	array set params {}
-	foreach {param} {id otp h timestamp nonce sl timeout} {
+	foreach {param} {id otp h timestamp nonce sl timeout ext v11compatible} {
 		set params($param) [string trim [::ncgi::value $param ""]]
+	}
+
+	foreach param {timestamp ext v11compatible} {
+		if {![info exists params($param)]} {set params($param) 0}
+	}
+
+	if {$params(v11compatible) == "1"} {
+		set params(nonce) {0000000000000000}
+		set params(sl) 100
 	}
 
 	if {![string is integer -strict $params(id)]} {
@@ -63,9 +74,6 @@ proc go {} {
 		return -code error -errorcode OTP -options {api_response MISSING_PARAMETER} "invalid nonce"
 	}
 
-	foreach param {timestamp ext} {
-		if {![info exists params($param)]} {set params($param) 0}
-	}
 	
 	## get user data
 	if {[set user [${::yubi::wsapi::backend}::get_user $params(id)]] == ""} {
@@ -116,7 +124,9 @@ proc go {} {
 	
 	## check & update otp/nonce (with normalized otp)
 	if {![${::yubi::wsapi::backend}::check_and_update_otp_nonce $params(id) $otp $params(nonce)]} {
-		return -code error -errorcode OTP -options [list api_response REPLAYED_OTP data $ret] "go away."
+		set api_response REPLAYED_REQUEST
+		if {$params(v11compatible) == "1"} {set api_response REPLAYED_OTP}
+		return -code error -errorcode OTP -options [list api_response $api_response data $ret] "go away."
 	}
 	
 	## check counters
