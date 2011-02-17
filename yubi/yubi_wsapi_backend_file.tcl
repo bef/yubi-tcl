@@ -197,7 +197,7 @@ namespace eval ::yubi::wsapi::backend_file {
 	proc get_users {ids} {
 		variable config
 		set ret {}
-		foreach fn [glob_filter $config(userdir)] {
+		foreach fn [glob_filter $config(userdir) $ids] {
 			set id [lindex [file split $fn] end]
 			lappend ret $id [get_user $id]
 		}
@@ -208,7 +208,7 @@ namespace eval ::yubi::wsapi::backend_file {
 	proc get_keys {tokenids} {
 		variable config
 		set ret {}
-		foreach fn [glob_filter $config(keydir)] {
+		foreach fn [glob_filter $config(keydir) $tokenids] {
 			set id [lindex [file split $fn] end]
 			lappend ret $id [get_key $id 0]
 		}
