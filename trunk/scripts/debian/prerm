@@ -3,4 +3,5 @@ set -e
 if [ "$1" = "upgrade" -o "$1" = "remove" ]; then
   rm -f /usr/bin/yubi_key_mgmt
   rm -f /usr/bin/yubi_otpinfo
+  rm -f /usr/bin/yubi_hextool
 fi
