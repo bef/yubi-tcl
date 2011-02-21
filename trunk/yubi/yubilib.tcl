@@ -218,14 +218,14 @@ proc ::yubi::normalize_modhex {s} {
 	return [modhex_encode [modhex_decode $s $keymap]]
 }
 
-## decode modhex
+## decode modhex to hex
 proc ::yubi::modhex_decode [list s [list keymap $::yubi::us_keymap]] {
 	variable hexdigits
 	set mhmap [lzip [split $keymap {}] [split $hexdigits {}]]
 	return [string map $mhmap $s]
 }
 
-## encode modhex
+## encode modhex from hex
 proc ::yubi::modhex_encode [list s [list keymap $::yubi::us_keymap]] {
 	variable hexdigits
 	set mhmap [lzip [split $hexdigits {}] [split $keymap {}]]

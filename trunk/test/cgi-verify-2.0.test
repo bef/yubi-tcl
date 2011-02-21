@@ -1,0 +1,197 @@
+#!/usr/bin/tclsh8.5
+if {[lsearch -exact $auto_path {..}] < 0} {
+	set auto_path [linsert $auto_path 0 [file join [file dirname [info script]] ..]]
+}
+package require tcltest
+package require yubi
+package require yubi::wsapi::client
+package require http
+
+namespace eval ::yubi::test {
+	namespace import ::tcltest::*
+	variable cgifile [file normalize [file join [file dirname [info script]] .. "cgi-verify-2.0.tcl"]]
+
+	proc cgi_run {querylist {calc_hmac 0}} {
+		variable cgifile
+		global env
+
+		if {$calc_hmac} {
+			lappend querylist h [::yubi::api_hmac "da5d1a9407db6df1b547c0daefb6298a" $querylist]
+		}
+
+		set env(REQUEST_METHOD) "GET"
+		set env(CONTENT_TYPE) ""
+		set env(QUERY_STRING) [::http::formatQuery {*}$querylist]
+		set cgiout [exec -keepnewline -- $cgifile test]
+
+		if {![regexp -- {^.*?(?:\r?\n\r?\n)(.*)$} $cgiout all body]} {return}
+		set data [::yubi::wsapi::client::parse_response $body]
+		return $data
+	}
+	
+	test missing_parameter-id {(id)} -body {
+		set res [cgi_run {otp abcd nonce 0000000000000000}]
+		set x "[dict get $res status]|[dict get $res errormsg]"
+	} -result {MISSING_PARAMETER|missing parameter: id}
+
+	test missing_parameter-otp {(otp)} -body {
+		set res [cgi_run {id 15 nonce 0000000000000000}]
+		set x "[dict get $res status]|[dict get $res errormsg]"
+	} -result {MISSING_PARAMETER|missing parameter: otp}
+
+	test missing_parameter-nonce {(nonce)} -body {
+		set res [cgi_run {id 15 otp abcd}]
+		set x "[dict get $res status]|[dict get $res errormsg]"
+	} -result {MISSING_PARAMETER|missing parameter: nonce}
+
+	test non-integer-id {} -body {
+		set res [cgi_run {id abc otp abcd nonce 0000000000000000}]
+		set x "[dict get $res status]|[dict get $res errormsg]"
+		# dict get $res status
+	} -result {MISSING_PARAMETER|id is not an integer}
+
+	# test empty-otp {} -body {
+	# 	set res [cgi_run {id 15 otp {} nonce 0000000000000000}]
+	# 	dict get $res status
+	# } -result {BAD_OTP}
+
+	test invalid-nonce {(too short)} -body {
+		set res [cgi_run {id 15 otp abcd nonce 00000}]
+		set x "[dict get $res status]|[dict get $res errormsg]"
+	} -result {MISSING_PARAMETER|invalid nonce}
+
+	test invalid-nonce {(too long)} -body {
+		set res [cgi_run {id 15 otp abcd nonce "00000000000000000000000000000000000000000000000000000000"}]
+		set x "[dict get $res status]|[dict get $res errormsg]"
+	} -result {MISSING_PARAMETER|invalid nonce}
+
+	test invalid-nonce {(non-hex)} -body {
+		set res [cgi_run {id 15 otp abcd nonce "000000000X000000"}]
+		set x "[dict get $res status]|[dict get $res errormsg]"
+	} -result {MISSING_PARAMETER|invalid nonce}
+
+	test unknown-id {} -body {
+		set res [cgi_run {id 1337 otp abcd nonce "0000000000000000"}]
+		set x "[dict get $res status]|[dict get $res errormsg]"
+	} -result {NO_SUCH_CLIENT|no user found for id 1337}
+
+	test incorrect-hmac {(w/ force_hmac)} -body {
+		set res [cgi_run {id 1 otp abcd nonce "0000000000000000"}]
+		set x "[dict get $res status]|[dict get $res errormsg]"
+	} -result {BAD_SIGNATURE|incorrect hmac}
+
+	test invalid-otp-length {} -body {
+		set res [cgi_run {id 1 otp abcd nonce "0000000000000000"} 1]
+		set x "[dict get $res status]|[dict get $res errormsg]"
+	} -result {BAD_OTP|invalid OTP length}
+
+	test no-token-id {} -body {
+		## ykgenerate a75bab9004c818850b0b549e32c4491c 000000000bef 0000 0000 00 00
+		set otp "jvcbctrjlihedubldkeiuehrgcblhhlf"
+
+		set res [cgi_run [list id 1 otp $otp nonce "0000000000000000"] 1]
+		set x "[dict get $res status]|[dict get $res errormsg]"
+	} -result {BAD_OTP|token ID missing}
+
+	test invalid-key {} -body {
+		set tokenid "jj"
+		## ykgenerate a75bab9004c818850b0b549e32c4491c 000000000bef 0000 0000 00 00
+		set otp "jvcbctrjlihedubldkeiuehrgcblhhlf"
+
+		set res [cgi_run [list id 1 otp "${tokenid}${otp}" nonce "0000000000000000"] 1]
+		set x "[dict get $res status]|[dict get $res errormsg]"
+	} -result {OPERATION_NOT_ALLOWED|invalid key}
+
+	test inactive-key {} -body {
+		set tokenid "cccctultnuuv"
+		## ykgenerate a75bab9004c818850b0b549e32c4491c 000000000bef 0000 0000 00 00
+		set otp "jvcbctrjlihedubldkeiuehrgcblhhlf"
+
+		set res [cgi_run [list id 1 otp "${tokenid}${otp}" nonce "0000000000000000"] 1]
+		set x "[dict get $res status]|[dict get $res errormsg]"
+	} -result {OPERATION_NOT_ALLOWED|key deactivated}
+
+	test crc-error {(correct tokenid, but invalid otp or aes key)} -body {
+		set tokenid "beeitultnuuv"
+		set otp "hlngbdrlkikcfjkglfuclhtieigiilll"
+
+		set res [cgi_run [list id 1 otp "${tokenid}${otp}" nonce "0000000000000000"] 1]
+		set x "[dict get $res status]|[dict get $res errormsg]"
+	} -result {BAD_OTP|incorrect CRC}
+
+	test incorrect-uid {} -body {
+		set tokenid "beeitultnuuv"
+		## ykgenerate a75bab9004c818850b0b549e32c4491c 000000000be0 0000 0000 00 00
+		set otp "hlngbdrlkikcfjkglfuclhtieigiilli"
+
+		set res [cgi_run [list id 1 otp "${tokenid}${otp}" nonce "0000000000000000"] 1]
+		set x "[dict get $res status]|[dict get $res errormsg]"
+	} -result {BAD_OTP|incorrect secret uid}
+
+	test replayed-request {(known otp/nonce)} -body {
+		set tokenid "beeitultnuuv"
+		## ykgenerate a75bab9004c818850b0b549e32c4491c 000000000bef 0000 0000 00 00
+		set otp "jvcbctrjlihedubldkeiuehrgcblhhlf"
+
+		set res [cgi_run [list id 1 otp "${tokenid}${otp}" nonce "0000000000000001"] 1]
+		dict get $res status
+	} -result {REPLAYED_REQUEST}
+
+	test counter-deviation-1 {(both counters too low)} -body {
+		set tokenid "beeitultnuuv"
+		## ykgenerate a75bab9004c818850b0b549e32c4491c 000000000bef 0000 0000 00 00
+		set otp "jvcbctrjlihedubldkeiuehrgcblhhlf"
+
+		set res [cgi_run [list id 1 otp "${tokenid}${otp}" nonce "0000000000000000"] 1]
+		dict get $res status
+	} -result {REPLAYED_OTP}
+	
+	test counter-deviation-2 {(use counter too low)} -body {
+		set tokenid "beeitultnuuv"
+		## ykgenerate a75bab9004c818850b0b549e32c4491c 000000000bef 0003 0000 00 05
+		set otp "bjlvnvrlridibdnffkujlbfgkrtfbbdc"
+
+		set res [cgi_run [list id 1 otp "${tokenid}${otp}" nonce "0000000000000000"] 1]
+		dict get $res status
+	} -result {REPLAYED_OTP}
+
+	test success {(status=OK)} -body {
+		set tokenid "beeitultnuuv"
+		## ykgenerate ykgenerate a75bab9004c818850b0b549e32c4491c 000000000bef 000a 0000 00 0a
+		set otp "befteleuhdthgnivvjegektcttjjhicv"
+
+		set res [cgi_run [list id 1 otp "${tokenid}${otp}" nonce "0000000000000000"] 1]
+		dict get $res status
+	} -result {OK}
+
+	test correct-hmac {} -body {
+		set tokenid "beeitultnuuv"
+		## ykgenerate ykgenerate a75bab9004c818850b0b549e32c4491c 000000000bef 000a 0000 00 0a
+		set otp "befteleuhdthgnivvjegektcttjjhicv"
+
+		set res [cgi_run [list id 1 otp "${tokenid}${otp}" nonce "0000000000000000"] 1]
+		set hash [dict get $res h]
+		set myhash [::yubi::api_hmac "da5d1a9407db6df1b547c0daefb6298a" [dict remove $res h]]
+		expr {$hash == $myhash}
+	} -result {1}
+
+	test timestamp-param {} -body {
+		set tokenid "beeitultnuuv"
+		## ykgenerate ykgenerate a75bab9004c818850b0b549e32c4491c 000000000bef 000a 0000 00 0a
+		set otp "befteleuhdthgnivvjegektcttjjhicv"
+
+		set res [cgi_run [list id 1 otp "${tokenid}${otp}" nonce "0000000000000000" timestamp 1] 1]
+
+		set x "[dict exists $res timestamp]|[dict exists $res sessioncounter]|[dict exists $res sessionuse]"
+	} -result {1|1|1}
+
+	## not tested:
+	## * ext=1 parameter
+	## * result format/datatypes
+
+
+	cleanupTests
+}
+
+namespace delete ::yubi::test
+

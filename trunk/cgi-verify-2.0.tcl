@@ -29,7 +29,11 @@ set auto_path [linsert $auto_path 0 [file join [file dirname [info script]]] {*}
 
 ##
 package require yubi
-package require yubi::wsapi::backend_${::config(wsapi_backend)}
+if {$::argv == "test"} {
+	package require yubi::wsapi::backend_dummy
+} else {
+	package require yubi::wsapi::backend_${::config(wsapi_backend)}
+}
 package require ncgi
 
 ## cgi
@@ -66,9 +70,9 @@ proc go {} {
 		return -code error -errorcode OTP -options {api_response MISSING_PARAMETER} "id is not an integer"
 	}
 
-	if {[string trim $params(otp)] == ""} {
-		return -code error -errorcode OTP -options {api_response BAD_OTP} "empty OTP"
-	}
+	# if {[string trim $params(otp)] == ""} {
+	# 	return -code error -errorcode OTP -options {api_response BAD_OTP} "empty OTP"
+	# }
 	
 	if {[string length $params(nonce)] < 16 || [string length $params(nonce)] > 40 || ![string is xdigit $params(nonce)]} {
 		return -code error -errorcode OTP -options {api_response MISSING_PARAMETER} "invalid nonce"
@@ -105,6 +109,9 @@ proc go {} {
 	
 	## get key data
 	set key [::${::yubi::wsapi::backend}::get_key $tokenid]
+	if {$key == {}} {
+		return -code error -errorcode OTP -options [list api_response OPERATION_NOT_ALLOWED data $ret] "invalid key"
+	}
 	
 	## add apikey to return data for message authentication
 	lappend ret apikey [dict get $user apikey]

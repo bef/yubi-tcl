@@ -1,5 +1,6 @@
 #
 # web-service API dummy backend
+# -- sample values have been chosen to accommodate unit testing
 #     Copyright (C) 2011 - Ben Fuhrmannek <bef@pentaphase.de>
 # 
 #     This program is free software: you can redistribute it and/or modify
@@ -32,14 +33,27 @@ namespace eval ::yubi::wsapi::backend_dummy {
 	}
 	
 	proc get_key {tokenid} {
+		set active 1
+		switch -- $tokenid {
+			cccctultnuuv {set active 0}
+			beeitultnuuv {}
+			default {return}
+		}
 		return [list \
 			aeskey a75bab9004c818850b0b549e32c4491c \
 			uid 000000000bef \
-			ctr 0 \
-			use 0 \
-			active 1 \
+			ctr 3 \
+			use 5 \
+			active $active \
 			usertoken {foo@example.com} \
 			]
+	}
+	
+	## detect replayed otp/nonce -> return 0
+	## otherwise update and return 1 on success
+	proc check_and_update_otp_nonce {tokenid otp nonce} {
+		if {"${otp}|${nonce}" == "beeitultnuuvjvcbctrjlihedubldkeiuehrgcblhhlf|0000000000000001"} {return 0}
+		return 1
 	}
 	
 }

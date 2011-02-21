@@ -22,6 +22,19 @@ namespace eval ::yubi::wsapi::client {
 	variable last_request {}
 	variable last_response {}
 
+	## parse "key=value" lines
+	proc parse_response {body} {
+		set data {}
+		foreach line [split $body "\r\n"] {
+			set sep_index [string first = $line]
+			if {$sep_index < 0} {continue}
+			set k [string range $line 0 $sep_index-1]
+			set v [string range $line $sep_index+1 end]
+			lappend data $k $v
+		}
+		return $data
+	}
+	
 	proc check {otp api_id api_key {api_url "http://api.yubico.com/wsapi/2.0/verify"} {extra_args {}}} {
 		variable last_request {}
 		variable last_response {}
@@ -31,7 +44,7 @@ namespace eval ::yubi::wsapi::client {
 		set nonce [::yubi::nonce]
 		set querylist [list id $api_id otp $in nonce $nonce]
 		lappend querylist {*}$extra_args
-		set hmac [::yubi::api_hmac $::api_key $querylist]
+		set hmac [::yubi::api_hmac $api_key $querylist]
 		lappend querylist h $hmac
 		set last_request $querylist
 		set query [::http::formatQuery {*}$querylist]
@@ -42,18 +55,11 @@ namespace eval ::yubi::wsapi::client {
 
 		## check http response code
 		if {[lindex [split $http_code] 1] != "200"} {
-			return -code error -errorcode WS "got HTTP $http_code from $::api_url"
+			return -code error -errorcode WS "got HTTP $http_code from $api_url"
 		}
 
 		## parse response
-		set data {}
-		foreach line [split $http_response "\r\n"] {
-			set sep_index [string first = $line]
-			if {$sep_index < 0} {continue}
-			set k [string range $line 0 $sep_index-1]
-			set v [string range $line $sep_index+1 end]
-			lappend data $k $v
-		}
+		set data [parse_response $http_response]
 		set last_response $data
 
 		## validate
@@ -75,7 +81,7 @@ namespace eval ::yubi::wsapi::client {
 		}
 
 		set hash [dict get $data h]
-		set myhash [::yubi::api_hmac $::api_key [dict remove $data h]]
+		set myhash [::yubi::api_hmac $api_key [dict remove $data h]]
 		if {$hash != $myhash} {
 			## incorrect hmac signature
 			return [list -4 "incorrect hmac signature"]
