@@ -17,7 +17,7 @@ DTMP=debtmp/$NAME
 
 cd $TMPDIR
 
-mkdir -p debian/etc/data
+mkdir -p debian/etc/yubi/data
 mkdir -p debian/usr/bin
 mkdir -p debian/var/cache/yubi
 
@@ -32,7 +32,7 @@ cp -a $DTMP/*.tcl debian/usr/share/yubi-tcl/
 mkdir -p debian/usr/share/doc/yubi-tcl
 cp -a $DTMP/doc debian/usr/share/doc/yubi-tcl/wiki
 cp -a $DTMP/etc debian/usr/share/doc/yubi-tcl/
-cp -a $DTMP/data debian/usr/share/doc/yubi-tcl/etc/
+cp -a $DTMP/data.sample debian/usr/share/doc/yubi-tcl/etc/
 cp -a $DTMP/examples debian/usr/share/doc/yubi-tcl/
 cp -a $CONTROLDIR/copyright debian/usr/share/doc/yubi-tcl/
 # cp $CONTROLDIR/changelog debian/usr/share/doc/yubi-tcl/
