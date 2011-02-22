@@ -34,4 +34,4 @@ Additional parameters and documentation can be found on the [http://code.google.
 
 == php-yubico ==
   * Download and unpack [http://code.google.com/p/php-yubico/ php-yubico]
-  * take a look at this [https://code.google.com/p/yubi-tcl/source/browse/trunk/examples/httptest.tcl working code snippet]
+  * take a look at this [https://code.google.com/p/yubi-tcl/source/browse/trunk/examples/php-yubico-example.php working code snippet]
