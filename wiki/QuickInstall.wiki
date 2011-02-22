@@ -7,5 +7,6 @@ The following few steps lead to a running validation server. However it is stron
   # Extract or checkout the software to /opt/yubi-tcl.
   # {{{mkdir /var/cache/yubi ; chown www-data:www-data /var/cache/yubi}}}
   # Link verify-script to your cgi-bin directory; e.g. {{{ln -s /opt/yubi-tcl/cgi-verify-2.0.tcl /usr/lib/cgi-bin}}}
+  # Copy etc/yubiconfig.tcl.sample to etc/yubiconfig.tcl and edit to suit your installation
   # (optional) Run a quick test: {{{/opt/yubi-tcl/test/yubilibtest.tcl}}}
-  # Edit/Add API users and yubikeys to /opt/yubi-tcl/data
+  # Copy data.sample to data and edit/add API users and yubikeys to /opt/yubi-tcl/data (see tools/yubi_key_mgmt.tcl)

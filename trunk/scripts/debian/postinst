@@ -4,7 +4,7 @@ if [ "$1" = "configure" ]; then
 	ln -sf /usr/share/yubi-tcl/tools/yubi_key_mgmt.tcl /usr/bin/yubi_key_mgmt
 	ln -sf /usr/share/yubi-tcl/tools/yubi_otpinfo.tcl /usr/bin/yubi_otpinfo
 	ln -sf /usr/share/yubi-tcl/tools/yubi_hextool.tcl /usr/bin/yubi_hextool
-	chmod 2750 /etc/data/keys /etc/data/users
-	chgrp -R www-data /etc/data/keys /etc/data/users
+	chmod 2750 /etc/yubi/data/keys /etc/yubi/data/users
+	chgrp -R www-data /etc/yubi/data/keys /etc/yubi/data/users
 fi
 

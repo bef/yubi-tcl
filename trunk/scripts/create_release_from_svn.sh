@@ -20,7 +20,7 @@ svn checkout http://yubi-tcl.googlecode.com/svn/wiki/ $NAME/doc
 echo "== packing"
 tar zcvf $NAME.tar.gz --exclude .svn $NAME
 
-# echo "== creating debian package"
-# $TMPDIR/$NAME/scripts/create_deb.sh $TMPDIR $NAME
+echo "== creating debian package"
+$TMPDIR/$NAME/scripts/create_deb.sh $TMPDIR $NAME
 
 echo "== look here --> $TMPDIR"
