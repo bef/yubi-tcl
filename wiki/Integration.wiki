@@ -27,7 +27,11 @@ $ ./tools/yubi_key_mgmt.tcl list user 2
 }}}
 The API URL must be compatible with [http://code.google.com/p/yubico-c-client ykclient], meaning
   # all query parameters must be sorted by key AND
-  # v11compatible=1 turns on validatio protocol version 1.1 compatibility mode.
+  # v11compatible=1 turns on validation protocol version 1.1 compatibility mode.
 `debug` is for debugging only and should be removed on production systems.
 
 Additional parameters and documentation can be found on the [http://code.google.com/p/yubico-pam/wiki/ReadMe yubico-pam readme page].
+
+== php-yubico ==
+  * Download and unpack [http://code.google.com/p/php-yubico/ php-yubico]
+  * take a look at this [https://code.google.com/p/yubi-tcl/source/browse/trunk/examples/httptest.tcl working code snippet]
