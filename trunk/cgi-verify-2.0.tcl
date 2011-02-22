@@ -39,6 +39,7 @@ package require ncgi
 ## cgi
 ::ncgi::parse
 ::ncgi::header {text/plain}
+fconfigure stdout -translation crlf
 
 
 proc go {} {
@@ -193,12 +194,13 @@ set response(t) [::yubi::timestamp]
 
 ## prepare response
 set responsevalues {}
-foreach {param} {t status timestamp sessioncounter sessionuse sl otp nonce errormsg usotp debugmsg} {
+set responsekeys {t status timestamp sessioncounter sessionuse sl otp nonce}
+if {[::ncgi::value ext ""] == "1" || $::argv == "test"} {lappend responsekeys errormsg usotp debugmsg}
+foreach {param} $responsekeys {
 	if {[info exists response($param)]} {
 		lappend responsevalues $param $response($param)
 	}
 }
-
 
 ## add HMAC
 if {[info exists response(apikey)]} {
