@@ -75,6 +75,11 @@ namespace eval ::yubi::test {
 		set x "[dict get $res status]|[dict get $res errormsg]"
 	} -result {NO_SUCH_CLIENT|no user found for id 1337}
 
+	test inactive-user {} -body {
+		set res [cgi_run {id 99 otp abcd nonce "0000000000000000"}]
+		set x "[dict get $res status]|[dict get $res errormsg]"
+	} -result {OPERATION_NOT_ALLOWED|user deactivated: id 99}
+
 	test incorrect-hmac {(w/ force_hmac)} -body {
 		set res [cgi_run {id 1 otp abcd nonce "0000000000000000"}]
 		set x "[dict get $res status]|[dict get $res errormsg]"

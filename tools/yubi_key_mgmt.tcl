@@ -78,6 +78,11 @@ proc print_kv {data {headline {}} {indent {  }}} {
 }
 
 proc read_yn {text {default y}} {
+	switch -- $default {
+		y -
+		1 {set default y}
+		default {set default n}
+	}
 	while {1} {
 		puts -nonewline "$text (y/n) \[$default\] "
 		flush stdout
@@ -148,59 +153,49 @@ proc yubikey_export {data} {
 	}
 }
 
-cmd {n* k*} {new key} {
-	## get token id - 0x28, 16-bit user id, 24-bit key id
-	set public_identity "28[string range [::yubi::nonce] 0 9]"
-	set public_identity [read_text "public identity ('-' = empty)?" $public_identity]
-	if {$public_identity == "-"} {set public_identity ""}
-	if {![string is xdigit $public_identity] || [string length $public_identity] > 16} {
-		puts ":( invalid tokenid"
-		return
-	}
-	set tokenid [::yubi::modhex_encode $public_identity]
-	
-	## exists?
-	if {[${::yubi::wsapi::backend}::key_exists $tokenid]} {
-		puts ":( key exists already"
-		return
-	}
+proc edit_key {tokenid data} {
+	set public_identity [::yubi::modhex_decode $tokenid]
+	puts "public identity: $public_identity"
 	
 	## get private identity (12 bytes; to be encrypted)
-	set uid [read_text "private identity (uid)?" [string range [::yubi::nonce] 0 11]]
+	set uid [read_text "private identity (uid)?" [dict get $data uid]]
 	if {![string is xdigit $uid] || [string length $uid] != 12} {
 		puts ":( invalid uid"
 		return
 	}
 	
 	## get aeskey
-	set aeskey [read_text "new AES key or confirm?" [::yubi::nonce]]
+	set aeskey [read_text "AES key or confirm?" [dict get $data aeskey]]
 	if {![string is xdigit $aeskey] || [string length $aeskey] < 32} {
 		puts ":( invalid aeskey"
 		return
 	}
 	
-
 	## get serialnr
-	set serialnr [read_text "yubikey serialnr (optional)?" 0]
+	set serialnr [read_text "yubikey serialnr (optional)?" [dict get $data serialnr]]
 	if {![string is digit $serialnr] || [string length $serialnr] > 16} {
 		puts ":( invalid serialnr"
 		return
 	}
 	
 	## get usertoken - any name or email associated with the key owner
-	set usertoken [read_text "usertoken?" "foo@example.com"]
+	set usertoken [read_text "usertoken?" [dict get $data usertoken]]
 	
+	## active?
+	set active [read_yn "enabled?" [dict get $data active]]
+	set active [expr {$active == "y"}]
+
 	## merge data
 	set key_data [list \
 		aeskey $aeskey \
 		uid $uid \
-		active 1 \
+		active $active \
 		usertoken $usertoken \
 		serialnr $serialnr \
 		publicid $public_identity]
 
 	## confirm
-	print_kv $key_data "====\[ new key $tokenid \]===="
+	print_kv $key_data "====\[ key $tokenid \]===="
 	if {[read_yn "Commit?" y] != "y"} {return}
 
 	## store key
@@ -213,48 +208,52 @@ cmd {n* k*} {new key} {
 	return [list tokenid $tokenid data $key_data]
 }
 
+cmd {n* k*} {new key} {
+	## get token id - 0x28, 16-bit user id, 24-bit key id
+	set tmp_public_identity "28[string range [::yubi::nonce] 0 9]"
+	set tokenid [::yubi::modhex_encode $tmp_public_identity]
 
-cmd {n* u*} {new user} {	
-	## get uid
-	set uid [${::yubi::wsapi::backend}::get_new_userid]
-	set uid [read_text "new API user id?" $uid]
-	if {$uid == "" || ![string is digit $uid]} {
-		puts ":( invalid key id"
+	set tokenid [read_text "token id ('-' = empty)?" $tokenid]
+	if {$tokenid == "-"} {set tokenid ""}
+	if {![::yubi::is_valid_modhex $tokenid] || [string length $tokenid] > 16} {
+		puts ":( invalid tokenid"
 		return
 	}
+	set public_identity [::yubi::modhex_decode $tokenid]
 	
 	## exists?
-	if {[${::yubi::wsapi::backend}::user_exists $uid]} {
-		puts ":( user exists already"
+	if {[${::yubi::wsapi::backend}::key_exists $tokenid]} {
+		puts ":( key exists already"
 		return
 	}
 
-	## get apikey
-	set apikey [read_text "new AES API key?" [::yubi::nonce]]
-	if {![string is xdigit $apikey] || [string length $apikey] != 32} {
-		puts ":( invalid apikey"
-		return
-	}
+	set key_data [list \
+		aeskey [::yubi::nonce] \
+		uid [string range [::yubi::nonce] 0 11] \
+		active 1 \
+		usertoken "foo@example.com" \
+		serialnr 0 \
+		publicid $public_identity]
 
-	## get service description
-	set service_description [read_text "service description" "www.example.com"]
-	
-	## get force hmac flag
-	set force_hmac [read_yn "force HMAC?" "y"]
-	set force_hmac [expr {$force_hmac == "y"}]
-	
-	set user_data [list apikey $apikey service_description $service_description force_hmac $force_hmac]
-	print_kv $user_data "====\[ new user $uid \]===="
-	
-	if {[read_yn "Commit?" y] != "y"} {return}
-	
-	## create user
-	${::yubi::wsapi::backend}::store_user $uid $user_data
-	
-	return [list uid $uid data $user_data]
+	return [edit_key $tokenid $key_data]
 }
 
-cmd {e* k*} {export key <id>} {
+cmd {ed* k*} {edit key <id>} {
+	set tokenid [string trim $args]
+	if {$tokenid == "" || ![::yubi::is_valid_modhex $tokenid]} {
+		puts ":( no id"
+		return
+	}
+	set key_data [${::yubi::wsapi::backend}::get_key $tokenid 0]
+	if {$key_data == ""} {
+		puts ":( key does not exist"
+		return
+	}
+
+	return [edit_key $tokenid $key_data]
+}
+
+cmd {ex* k*} {export key <id>} {
 	set tokenid [string trim $args]
 	if {$tokenid == "" || ![::yubi::is_valid_modhex $tokenid]} {
 		puts ":( no id"
@@ -270,6 +269,83 @@ cmd {e* k*} {export key <id>} {
 }
 
 
+proc edit_user {uid data} {
+	## get apikey
+	set apikey [read_text "AES API key?" [dict get $data apikey]]
+	if {![string is xdigit $apikey] || [string length $apikey] != 32} {
+		puts ":( invalid apikey"
+		return
+	}
+
+	## get service description
+	set service_description [read_text "service description" [dict get $data service_description]]
+	
+	## get force hmac flag
+	set force_hmac [read_yn "force HMAC?" [dict get $data force_hmac]]
+	set force_hmac [expr {$force_hmac == "y"}]
+
+	## active?
+	set active [read_yn "enabled?" [dict get $data active]]
+	set active [expr {$active == "y"}]
+	
+	## merge data and confirm
+	set user_data [list \
+		apikey $apikey \
+		service_description $service_description \
+		force_hmac $force_hmac \
+		active $active]
+	print_kv $user_data "====\[ user $uid \]===="
+	
+	if {[read_yn "Commit?" y] != "y"} {return}
+	
+	## create user
+	${::yubi::wsapi::backend}::store_user $uid $user_data
+	
+	return [list uid $uid data $user_data]
+}
+
+cmd {n* u*} {new user} {
+	## get uid
+	set uid [${::yubi::wsapi::backend}::get_new_userid]
+	set uid [read_text "new API user id?" $uid]
+	if {$uid == "" || ![string is digit $uid]} {
+		puts ":( invalid key id"
+		return
+	}
+	
+	## exists?
+	if {[${::yubi::wsapi::backend}::user_exists $uid]} {
+		puts ":( user exists already"
+		return
+	}
+
+	return [edit_user $uid [list \
+		apikey [::yubi::nonce] \
+		service_description "www.example.com" \
+		force_hmac y \
+		active y]]
+}
+
+cmd {e* u*} {edit user <uid>} {
+	set uid [string trim $args]
+	if {$uid == "" || ![string is digit $uid]} {
+		puts ":( invalid uid"
+	}
+	set user_data [${::yubi::wsapi::backend}::get_user $uid]
+	if {$user_data == ""} {
+		puts ":( user does not exist"
+		return
+	}
+	return [edit_user $uid $user_data]
+}
+
+cmd {s* l*} {show license} {
+	package require http
+	set token [http::geturl {http://www.gnu.org/licenses/gpl-3.0.txt}]
+	puts [http::data $token]
+}
+
+
 ## interactive mode
 proc read_loop {} {
 	while {1} {
@@ -281,6 +357,15 @@ proc read_loop {} {
 		call $input
 	}
 }
+
+puts "yubi key management tool  Copyright (C) 2011  Ben Fuhrmannek <bef@pentaphase.de>
+|- yubilib version ${::yubi::version}
+|- backend: '${::config(wsapi_backend)}' version [set ${::yubi::wsapi::backend}::version]
+|
+|  This program comes with ABSOLUTELY NO WARRANTY; for details type 'show license'
+|  This is free software, and you are welcome to redistribute it
+|  under certain conditions.
+"
 
 if {$::argc > 0} {
 	call [string trim $::argv]

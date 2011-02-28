@@ -15,6 +15,7 @@
 #     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+package require yubi
 package require md5
 
 namespace eval ::yubi::wsapi::backend_file {
@@ -124,7 +125,7 @@ namespace eval ::yubi::wsapi::backend_file {
 			return
 		}
 		
-		return $user_data
+		return [dict merge $::yubi::wsapi::user_template $user_data]
 	}
 	
 	## return key data
@@ -256,6 +257,35 @@ namespace eval ::yubi::wsapi::backend_file {
 		}
 		return $uid
 	}	
+	
+	## delete user
+	proc delete_user {uid} {
+		variable config
+		set userfile [file join $config(userdir) $uid]
+		if {[file exists $userfile]} {
+			file delete -- $userfile
+		}
+	}
+	
+	## delete key, counters and nonce cache
+	proc delete_key {tokenid} {
+		variable config
+		set keyfile [file join $config(keydir) $tokenid]
+		if {[file exists $keyfile]} {
+			file delete -- $keyfile
+		}
+		
+		set counter_file [file join $config(counterdir) $keyid]
+		if {[file exists $conter_file]} {
+			file delete -- $counter_file
+		}
+		
+		set cachedir [file join $config(cachedir) nonce $tokenid]
+		if {[file exists $cachedir]} {
+			file delete -force -- $pathname
+		}
+		
+	}
 	
 }
 
