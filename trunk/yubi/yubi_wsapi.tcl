@@ -22,17 +22,16 @@ namespace eval ::yubi::wsapi {
 	
 	## defaults for optional user and key data fields
 	## -- use this as a dict merge basis, e.g. dict merge $::yubi::wsapi::data_template {apikey 12345 ...}
-	variable data_template {service_description "unknown service" force_hmac 0}
+	variable user_template {active 1 service_description "unknown service" force_hmac 0}
 	variable key_template {active 1 usertoken "anonymous" serialnr 0}
 
 	## user data fileds separated into mandatory and optional api user fields and yubikey fields
-	## -- relation: 1-to-n: each key can be used by several api users
+	## -- relation: n-to-m: n keys can be used by m api users
 	## -- all fields must be returned by get_user as dict
 	variable mandatory_user_fields {apikey}
-	variable optional_user_fields {service_description force_hmac}
+	variable optional_user_fields {active service_description force_hmac}
 	variable mandatory_key_fields {aeskey uid publicid}
 	variable optional_key_fields {active usertoken serialnr}
-	variable all_fields [join [list $mandatory_user_fields $optional_user_fields $mandatory_key_fields $optional_key_fields]]
 	
 	##
 	## API interface
@@ -44,7 +43,7 @@ namespace eval ::yubi::wsapi {
 	}
 	
 	## return key data
-	proc get_key {tokenid} {
+	proc get_key {tokenid {with_counters 1}} {
 		return
 	}
 	
@@ -85,6 +84,13 @@ namespace eval ::yubi::wsapi {
 		return ""
 	}
 	
+	## delete user
+	proc delete_user {uid} {}
+	
+	## delete key, counters and nonce cache
+	proc delete_key {tokenid} {}
+	
+
 	## export everything
 	namespace export {*}
 }

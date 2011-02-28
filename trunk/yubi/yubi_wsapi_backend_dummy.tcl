@@ -16,6 +16,8 @@
 #     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
+package require yubi
+
 namespace eval ::yubi::wsapi::backend_dummy {
 	namespace import ::yubi::wsapi::*
 	set ::yubi::wsapi::backend [namespace current]
@@ -24,15 +26,21 @@ namespace eval ::yubi::wsapi::backend_dummy {
 	
 	## return api and yubikey data for given api-id
 	proc get_user {id} {
-		if {$id != 1} {return}
+		set active 1
+		switch -- $id {
+			1 {}
+			99 {set active 0}
+			default {return}
+		}
 		return [list \
 			apikey da5d1a9407db6df1b547c0daefb6298a \
 			service_description {fnord secure email provider} \
 			force_hmac 1 \
+			active $active \
 			]
 	}
 	
-	proc get_key {tokenid} {
+	proc get_key {tokenid {with_counters 1}} {
 		set active 1
 		switch -- $tokenid {
 			cccctultnuuv {set active 0}

@@ -85,6 +85,11 @@ proc go {} {
 		return -code error -errorcode OTP -options {api_response NO_SUCH_CLIENT} "no user found for id $params(id)"
 	}
 
+	## check key's active flag
+	if {![dict get $user active]} {
+		return -code error -errorcode OTP -options [list api_response OPERATION_NOT_ALLOWED] "user deactivated: id $params(id)"
+	}
+
 	## validate hmac if given or forced by peer configuration
 	if {$params(h) != "" || [dict get $user force_hmac]} {
 		set params_without_h [dict remove [::ncgi::nvlist] h]
@@ -117,7 +122,7 @@ proc go {} {
 	## add apikey to return data for message authentication
 	lappend ret apikey [dict get $user apikey]
 	
-	## check active flag
+	## check key's active flag
 	if {![dict get $key active]} {
 		return -code error -errorcode OTP -options [list api_response OPERATION_NOT_ALLOWED data $ret] "key deactivated"
 	}
