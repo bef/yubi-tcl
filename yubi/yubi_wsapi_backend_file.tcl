@@ -64,7 +64,7 @@ namespace eval ::yubi::wsapi::backend_file {
 		}
 		
 		foreach key [dict keys $data] {
-			if {![lsearch -exact $all_keys $key] == -1} {
+			if {[lsearch -exact $all_keys $key] == -1} {
 				puts stderr "unknown entry '$key' in '$filename'"
 				return 0
 			}
@@ -156,9 +156,9 @@ namespace eval ::yubi::wsapi::backend_file {
 	
 	## detect replayed otp/nonce -> return 0
 	## otherwise update and return 1 on success
-	proc check_and_update_otp_nonce {id otp nonce} {
+	proc check_and_update_otp_nonce {tokenid otp nonce} {
 		variable config
-		set cachedir [file join $config(cachedir) nonce $id]
+		set cachedir [file join $config(cachedir) nonce $tokenid]
 		set hash [string tolower [::md5::md5 -hex "$otp:$nonce"]]
 		set cachefile [file join $cachedir $hash]
 		
@@ -275,14 +275,14 @@ namespace eval ::yubi::wsapi::backend_file {
 			file delete -- $keyfile
 		}
 		
-		set counter_file [file join $config(counterdir) $keyid]
-		if {[file exists $conter_file]} {
+		set counter_file [file join $config(counterdir) $tokenid]
+		if {[file exists $counter_file]} {
 			file delete -- $counter_file
 		}
 		
 		set cachedir [file join $config(cachedir) nonce $tokenid]
 		if {[file exists $cachedir]} {
-			file delete -force -- $pathname
+			file delete -force -- $cachedir
 		}
 		
 	}

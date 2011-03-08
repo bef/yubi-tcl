@@ -1,0 +1,158 @@
+#!/usr/bin/tclsh8.5
+if {[lsearch -exact $auto_path {..}] < 0} {
+	set auto_path [linsert $auto_path 0 [file join [file dirname [info script]] ..]]
+}
+package require tcltest
+package require yubi
+package require fileutil
+package require uuid
+
+
+## setup
+set tmpdir [file join [::fileutil::tempdir] "yubi-[::uuid::uuid generate]"]
+file mkdir $tmpdir
+
+set ::config(wsapi_backend_file) [list datadir [file join ${tmpdir} data] cachedir [file join ${tmpdir} cache]]
+
+package require yubi::wsapi::backend_file
+
+foreach dir {datadir userdir keydir cachedir counterdir} {
+	file mkdir $::yubi::wsapi::backend_file::config($dir)
+}
+
+
+## tests
+
+namespace eval ::yubi::test {
+	namespace import ::tcltest::*
+	variable ns {::yubi::wsapi::backend_file}
+	variable config
+	array set config [array get ::yubi::wsapi::backend_file::config]
+	
+	test get_user-success {} -body {
+		set id 1001
+		::fileutil::writeFile -- [file join $config(userdir) $id] "apikey = 123\n\n#comment\n"
+		${ns}::get_user $id
+	} -result {active 1 service_description {unknown service} force_hmac 0 apikey 123}
+
+	test get_user-no-apikey {} -body {
+		set id 1002
+		::fileutil::writeFile -- [file join $config(userdir) $id] ""
+		${ns}::get_user $id
+	} -result {} -output {} -errorOutput "missing entry 'apikey' in *" -match glob
+
+	test get_user-unknown-entry {} -body {
+		set id 1003
+		::fileutil::writeFile -- [file join $config(userdir) $id] "apikey = 123\nfoo=bar"
+		${ns}::get_user $id
+	} -result {} -output {} -errorOutput "unknown entry 'foo' in *" -match glob
+
+	test get_key-success {} -body {
+		set id key1
+		::fileutil::writeFile -- [file join $config(keydir) $id] "aeskey=abc\nuid=def\npublicid=ghi\n\n#comment\n"
+		${ns}::get_key $id
+	} -result {active 1 usertoken anonymous serialnr 0 aeskey abc uid def publicid ghi ctr 0 use 0}
+
+	test get_key-missing-entry {} -body {
+		set id key2
+		::fileutil::writeFile -- [file join $config(keydir) $id] "\nuid=def\npublicid=ghi\n\n#comment\n"
+		${ns}::get_key $id
+	} -result {} -output {} -errorOutput "missing entry '*" -match glob
+
+	test get_key-unknown-entry {} -body {
+		set id key3
+		::fileutil::writeFile -- [file join $config(keydir) $id] "aeskey=abc\nuid=def\npublicid=ghi\nfoo=bar\n"
+		${ns}::get_key $id
+	} -result {} -output {} -errorOutput "unknown entry 'foo'*" -match glob
+
+	test check_and_update_otp_nonce {} -body {
+		set id key0
+		set res1 [${ns}::check_and_update_otp_nonce $id fooOTP fooNONCE]
+		set res2 [${ns}::check_and_update_otp_nonce $id fooOTP fooNONCE]
+		puts -nonewline "$res1|$res2"
+	} -output {1|0}
+	
+	test update_counters {} -body {
+		set id key0
+		${ns}::update_counters $id 23 42
+		::fileutil::cat [file join $config(counterdir) $id]
+	} -result {23 42}
+	
+	test get_users {} -body {
+		foreach id {3001 3002 3003 3004} {
+			::fileutil::writeFile -- [file join $config(userdir) $id] "apikey = 123\n\n#$id\n"
+		}
+		set users [${ns}::get_users 300*]
+		lsort [dict keys $users]
+	} -result {3001 3002 3003 3004}
+	
+	test get_keys {} -body {
+		foreach id {key3001 key3002 key3003 key3004} {
+			::fileutil::writeFile -- [file join $config(keydir) $id] "aeskey=abc\nuid=def\npublicid=ghi\n\n#$id\n"
+		}
+		set keys [${ns}::get_keys key300*]
+		lsort [dict keys $keys]
+	} -result {key3001 key3002 key3003 key3004}
+	
+	test key_exists-success {} -body {
+		set id key5000
+		::fileutil::writeFile -- [file join $config(keydir) $id] "#"
+		${ns}::key_exists $id
+	} -result 1
+
+	test key_exists-failure {} -body {
+		${ns}::key_exists invalid_key
+	} -result 0
+	
+	test user_exists-success {} -body {
+		set id 6000
+		::fileutil::writeFile -- [file join $config(userdir) $id] "#"
+		${ns}::user_exists $id
+	} -result 1
+
+	test user_exists-failure {} -body {
+		${ns}::user_exists 6001
+	} -result 0
+	
+	test store_key {} -body {
+		set id key7000
+		${ns}::store_key $id {foo boo}
+		::fileutil::cat [file join $config(keydir) $id]
+	} -result {*foo = boo*} -match glob
+
+	test store_user {} -body {
+		set id 7001
+		${ns}::store_user $id {foo boo}
+		::fileutil::cat [file join $config(userdir) $id]
+	} -result {*foo = boo*} -match glob
+	
+	test get_new_userid {} -body {
+		::fileutil::writeFile -- [file join $config(userdir) 99000] "#"
+		${ns}::get_new_userid
+	} -result 99001
+	
+	test delete_user {} -body {
+		set id 8000
+		::fileutil::writeFile -- [file join $config(userdir) $id] "#"
+		${ns}::delete_user $id
+		file exists [file join $config(userdir) $id]
+	} -result 0
+
+	test delete_key {} -body {
+		set id key8000
+		::fileutil::writeFile -- [file join $config(keydir) $id] "#"
+		::fileutil::writeFile -- [file join $config(counterdir) $id] "0 0"
+		file mkdir [file join $config(cachedir) nonce $id]
+		${ns}::delete_key $id
+		set k [file exists [file join $config(keydir) $id]]
+		set c [file exists [file join $config(counterdir) $id]]
+		set n [file exists [file join $config(cachedir) nonce $id]]
+		set x "$k|$c|$n"
+	} -result {0|0|0}
+	
+	cleanupTests
+}
+
+## cleanup
+namespace delete ::yubi::test
+file delete -force -- $tmpdir
