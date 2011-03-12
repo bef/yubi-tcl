@@ -35,3 +35,60 @@ Additional parameters and documentation can be found on the [http://code.google.
 == php-yubico ==
   * Download and unpack [http://code.google.com/p/php-yubico/ php-yubico]
   * take a look at this [https://code.google.com/p/yubi-tcl/source/browse/trunk/examples/php-yubico-example.php working code snippet]
+
+== OpenSSH two-factor authentication ==
+  * Set up ssh with public key authentication: [http://www.google.co.uk/search?q=howto+openssh+publickey HOWTO]
+  * Set up sshd_config (usually `/etc/ssh/sshd_config`) - append the following lines or an equivalent at the end of your sshd_config:
+{{{
+	AcceptEnv SSH_AUTH_OTP
+	Match User user,test Address 0.0.0.0/0,!172.16.0.0/16
+	        #Banner /etc/otp_banner
+	        PasswordAuthentication no
+	        PubkeyAuthentication yes
+	        ForceCommand /opt/yubi/examples/ssh_force_cmd.tcl /opt/yubi/etc/authorized_yubi.ini
+}}}
+  The ForceCommand script verifies the correct input of an OTP token after successful public key authentication.
+  * Configure validation server and allowed keys in `/opt/yubi/etc/authorized_yubi.ini`:
+{{{
+[global]
+api_url = http://localhost:88/cgi-bin/yubiverify2.0.tcl
+api_id = 1
+api_key = 2l0alAfbbfG1R8Da77Ypig==
+
+[user:user]
+tokenids = djiehevlhiti djbvbvkgvfth djtvuvefnjth
+
+[user:test]
+tokenids = cccccccirnnn
+api_url = http://api.yubico.com/wsapi/2.0/verify
+api_id = 42
+api_key = dGhpcyBpcyBhIHRlc3Q=
+}}}
+    User `user` has three yubikeys with private token IDs. User `test` will be validated against a different validation server.
+  * Set up scp/sftp compatibility:
+    The OTP token may be passed to the server side either interactively (stdin), or by sharing the environment valiable `SSH_AUTH_OTP`. This can be useful for `scp` or `sftp`. A simple replacement scp command could be
+{{{
+	alias scp-otp='echo -n "OTP: "; read SSH_AUTH_OTP; export SSH_AUTH_OTP; scp -oSendEnv=SSH_AUTH_OTP'
+}}}
+
+  * example SSH session with incorrect token:
+{{{
+$ ssh user@devvm
+One-Time-Password: aoeu
+permission denied.
+Connection to devvm closed.
+}}}
+  * example SSH session with correct token:
+{{{
+$ ssh user@devvm
+One-Time-Password: ehc.d.kndcycgniuunxcyyibjy.jkxubj.jtyjcpbypp
+user@devvm:~$	
+}}}
+  * example SCP:
+{{{
+$ scp-otp /etc/hosts user@devvm:/tmp
+OTP: ehc.d.kndcyciicjdddj.utdxeutchgubh.cgugipndj
+hosts                                                                  100%  805     0.8KB/s   00:00    
+Transferred: sent 3952, received 2552 bytes, in 0.9 seconds
+Bytes per second: sent 4600.0, received 2970.5
+}}}

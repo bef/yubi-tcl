@@ -48,7 +48,7 @@ namespace eval ::yubi::wsapi::client {
 		lappend querylist h $hmac
 		set last_request $querylist
 		set query [::http::formatQuery {*}$querylist]
-		set token [::http::geturl "${api_url}?$query" -method GET]
+		set token [::http::geturl "${api_url}?$query" -method GET -keepalive 0]
 		set http_response [::http::data $token]
 		set http_code [::http::code $token]
 		::http::cleanup $token
