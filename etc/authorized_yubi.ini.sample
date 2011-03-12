@@ -1,0 +1,14 @@
+[global]
+api_url = http://localhost:88/cgi-bin/yubiverify2.0.tcl
+api_id = 1
+api_key = 2l0alAfbbfG1R8Da77Ypig==
+
+[user:user]
+tokenids = djiehevlhiti djbvbvkgvfth djtvuvefnjth
+
+[user:test]
+tokenids = cccccccirnnn
+;api_url = http://api.yubico.com/wsapi/2.0/verify
+;api_id = 42
+;api_key = dGhpcyBpcyBhIHRlc3Q=
+
