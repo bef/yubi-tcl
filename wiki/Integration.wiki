@@ -1,7 +1,7 @@
 #summary How to use yubi-tcl with your setup, e.g. PAM
 
 = Integration =
-== Linux-PAM ==
+== Linux-PAM (yubico-pam) ==
   * Download and install [http://code.google.com/p/yubico-pam/ yubico-pam]
   * Create or use a Yubikey emitting 44 OTP characters (12 public identity + 32 encrypted OTP), e.g. `djiehevlhitindetjnfclldbdngihdketubiguvggfgj`
   * Extract your yubikey's token ID (first 12 characters of the OTP): `djiehevlhiti`
@@ -32,6 +32,18 @@ The API URL must be compatible with [http://code.google.com/p/yubico-c-client yk
 
 Additional parameters and documentation can be found on the [http://code.google.com/p/yubico-pam/wiki/ReadMe yubico-pam readme page].
 
+== Linux-PAM (libpam-script) ==
+  * follow instructions in "Linux-PAM (yubico-pam)", but install `libpam-script` instead, e.g. `apt-get install libpam-script`
+  * Configure PAM, e.g. /etc/pam.d/sshd:
+{{{
+auth sufficient pam_script.so dir=/opt/yubi/examples
+}}}
+  * copy or link `ssh_force_cmd.tcl` to `pam_script_auth`:
+{{{
+cd /opt/yubi/examples
+ln -s ssh_force_cmd.tcl pam_script_auth
+}}}
+
 == php-yubico ==
   * Download and unpack [http://code.google.com/p/php-yubico/ php-yubico]
   * take a look at this [https://code.google.com/p/yubi-tcl/source/browse/trunk/examples/php-yubico-example.php working code snippet]
@@ -45,7 +57,7 @@ Additional parameters and documentation can be found on the [http://code.google.
 	        #Banner /etc/otp_banner
 	        PasswordAuthentication no
 	        PubkeyAuthentication yes
-	        ForceCommand /opt/yubi/examples/ssh_force_cmd.tcl /opt/yubi/etc/authorized_yubi.ini
+	        ForceCommand /opt/yubi/examples/ssh_force_cmd.tcl ini=/opt/yubi/etc/authorized_yubi.ini
 }}}
   The ForceCommand script verifies the correct input of an OTP token after successful public key authentication.
   * Configure validation server and allowed keys in `/opt/yubi/etc/authorized_yubi.ini`:
