@@ -34,6 +34,10 @@ proc permission_denied {} {
 	exit 1
 }
 
+proc sanitize {s} {
+	return [regsub -all -- {[^a-zA-Z0-9.@-_]} $s _]
+}
+
 ## args
 proc find_inifile {} {
 	foreach arg $::argv {
@@ -47,20 +51,30 @@ if {[info exists env(AUTHORIZED_YUBI)]} {set inifile $env(AUTHORIZED_YUBI)}
 
 ## get OTP string
 if {[info exists env(PAM_AUTHTOK)]} {
+	## PAM authentication
 	set auth_mode pam
 	set input $env(PAM_AUTHTOK)
-	set auth_user $env(PAM_USER)
+	set auth_user [sanitize $env(PAM_USER)]
+
 } elseif {[info exists env(SSH_AUTH_OTP)]} {
+	## SSH authentication
 	set auth_mode ssh
 	set input $env(SSH_AUTH_OTP)
-	set auth_user $env(USER)
+	set auth_user [sanitize $env(USER)]
+
+} elseif {[info exists env(username)] && [info exists env(password)]} {
+	## OpenVPN auth-user-pass-verify w/ method set to "via-env"
+	set auth_mode openvpn
+	set input $env(password)
+	set auth_user [sanitize $env(username)]
+
 } else {
 	set auth_mode ssh
 	## get OTP from stdin
 	puts -nonewline stdout "One-Time-Password: "
 	flush stdout
 	gets stdin input
-	set auth_user $env(USER)
+	set auth_user [sanitize $env(USER)]
 }
 
 ## normalize/un-dvorak input
