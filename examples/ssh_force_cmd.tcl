@@ -1,4 +1,4 @@
-#!/usr/bin/tclsh8.5
+#!/usr/bin/env tclsh
 #
 # check OTP with OpenSSH ForceCommand for two-factor authentication
 # or check OTP with libpam-script / pam_script_auth
@@ -17,7 +17,7 @@
 #     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-set auto_path [linsert $auto_path 0 [file join [file dirname $::argv0] ..]]
+set auto_path [linsert $auto_path 0 {*}[list /opt/yubi /opt/yubi-tcl /usr/lib/yubi-tcl /usr/local/lib/yubi-tcl [file join [info script] ..]]]
 package require yubi
 package require yubi::wsapi::client
 ::http::config -useragent "yubi-tcl client $::yubi::wsapi::client::version"
@@ -30,7 +30,7 @@ proc log {msg {level auth.notice}} {
 }
 
 proc permission_denied {} {
-	puts stderr "permission denied."
+	if {$::verbose_output} { puts stderr "permission denied." }
 	exit 1
 }
 
@@ -50,11 +50,13 @@ if {$inifile eq ""} {set inifile "/opt/yubi/etc/authorized_yubi.ini"}
 if {[info exists env(AUTHORIZED_YUBI)]} {set inifile $env(AUTHORIZED_YUBI)}
 
 ## get OTP string
+set verbose_output 1
 if {[info exists env(PAM_AUTHTOK)]} {
 	## PAM authentication
 	set auth_mode pam
 	set input $env(PAM_AUTHTOK)
 	set auth_user [sanitize $env(PAM_USER)]
+	set silent_output 0
 
 } elseif {[info exists env(SSH_AUTH_OTP)]} {
 	## SSH authentication
