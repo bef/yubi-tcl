@@ -1,16 +1,29 @@
 [global]
+;; URL to the keyserver, API id + key
 api_url = http://localhost:88/cgi-bin/yubiverify2.0.tcl
 api_id = 1
 api_key = 2l0alAfbbfG1R8Da77Ypig==
 
+;; password for each key
+password:djiehevlhiti = testpw1
+password:djbvbvkgvfth = testpw2
+
+;; password for keys not listed above
+password=globalfallbackpw
+
+
 [user:root]
 tokenids = djiehevlhiti djbvbvkgvfth djtvuvefnjth
+password:djiehevlhiti = 0000
 
 [user:user]
 tokenids = djiehevlhiti djbvbvkgvfth djtvuvefnjth
+;; no password for user:user with key djiehevlhiti:
+password:djiehevlhiti = 
 
 [user:test]
 tokenids = cccccccirnnn
+;; user config can override global config
 ;api_url = http://api.yubico.com/wsapi/2.0/verify
 ;api_id = 42
 ;api_key = dGhpcyBpcyBhIHRlc3Q=

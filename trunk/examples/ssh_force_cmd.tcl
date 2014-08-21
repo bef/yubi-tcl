@@ -31,6 +31,8 @@ proc log {msg {level auth.notice}} {
 
 proc permission_denied {} {
 	if {$::verbose_output} { puts stderr "permission denied." }
+	## sleep a few random milliseconds to make timing attacks harder
+	after [expr { int(1000 * rand()) }]
 	exit 1
 }
 
@@ -56,7 +58,7 @@ if {[info exists env(PAM_AUTHTOK)]} {
 	set auth_mode pam
 	set input $env(PAM_AUTHTOK)
 	set auth_user [sanitize $env(PAM_USER)]
-	set silent_output 0
+	set verbose_output 0
 
 } elseif {[info exists env(SSH_AUTH_OTP)]} {
 	## SSH authentication
@@ -71,12 +73,25 @@ if {[info exists env(PAM_AUTHTOK)]} {
 	set auth_user [sanitize $env(username)]
 
 } else {
-	set auth_mode ssh
+	set auth_mode terminal
 	## get OTP from stdin
 	puts -nonewline stdout "One-Time-Password: "
 	flush stdout
 	gets stdin input
 	set auth_user [sanitize $env(USER)]
+}
+
+## too long input check
+if {[string length $input] > 256} {
+	log "input too long"
+	permission_denied
+}
+
+## extract static password
+set input_static ""
+if {[string length $input] > 44} {
+	set input_static [string range $input 0 [string length $input]-45]
+	set input [string range $input end-43 end]
 }
 
 ## normalize/un-dvorak input
@@ -123,6 +138,19 @@ set api_key [::yubi::base642hex $api_key]
 set tokenid [::yubi::tokenid $input]
 if {[lsearch -exact $tokenids $tokenid] == -1} {
 	log "unauthorized tokenid: $tokenid"
+	permission_denied
+}
+
+## check static password
+set static_password ""
+foreach k [list "password:$tokenid" "password"] {
+	if {[dict exists $config $k]} {
+		set static_password [dict get $config $k]
+		break
+	}
+}
+if {[string compare $static_password $input_static] != 0} {
+	log "static password incorrect"
 	permission_denied
 }
 
