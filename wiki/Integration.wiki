@@ -44,11 +44,13 @@ cd /opt/yubi/examples
 ln -s ssh_force_cmd.tcl pam_script_auth
 }}}
 
+Note on Ubuntu (trusty): The libpam-script package automatically inserts itself into the authentication chain. The symbolic link `pam_script_auth` is in `/usr/share/libpam-script` by default.
+
 == php-yubico ==
   * Download and unpack [http://code.google.com/p/php-yubico/ php-yubico]
   * take a look at this [https://code.google.com/p/yubi-tcl/source/browse/trunk/examples/php-yubico-example.php working code snippet]
 
-== OpenSSH two-factor authentication ==
+== OpenSSH two-factor authentication (SSH key + OTP) ==
   * Set up ssh with public key authentication: [http://www.google.co.uk/search?q=howto+openssh+publickey HOWTO]
   * Set up sshd_config (usually `/etc/ssh/sshd_config`) - append the following lines or an equivalent at the end of your sshd_config:
 {{{
@@ -103,4 +105,22 @@ OTP: ehc.d.kndcyciicjdddj.utdxeutchgubh.cgugipndj
 hosts                                                                  100%  805     0.8KB/s   00:00    
 Transferred: sent 3952, received 2552 bytes, in 0.9 seconds
 Bytes per second: sent 4600.0, received 2970.5
+}}}
+
+== OpenSSH two-factor authentication (Static Password + OTP) ==
+  * Enable PAM-Script as explained above
+  * Enable PAM and password authentication for some user in `sshd_config`:
+{{{
+# ...
+UsePAM yes
+# ...
+Match User user
+    PasswordAuthentication yes
+    PubkeyAuthentication no
+}}}
+  * Configure a password for your key in `authorized_yubi.ini`:
+{{{
+[user:user]
+tokenids = djiehevlhiti
+password:djiehevlhiti = 0000
 }}}
