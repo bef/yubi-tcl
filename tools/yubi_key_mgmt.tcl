@@ -1,4 +1,4 @@
-#!/usr/bin/tclsh8.5
+#!/usr/bin/env tclsh
 #
 # key management tool for web-service API backend
 #     Copyright (C) 2011 - Ben Fuhrmannek <bef@pentaphase.de>
@@ -15,7 +15,7 @@
 #     You should have received a copy of the GNU General Public License
 #     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-
+package require Tcl 8.5
 
 ## find/read configuration
 package require fileutil

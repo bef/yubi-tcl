@@ -1,4 +1,5 @@
-#!/usr/bin/tclsh8.5
+#!/usr/bin/env tclsh
+package require Tcl 8.5
 
 set auto_path [linsert $auto_path 0 [file join [file dirname $::argv0] ..]]
 package require yubi
