@@ -1,7 +1,8 @@
 #!/usr/bin/env tclsh
 #
 # check OTP with OpenSSH ForceCommand for two-factor authentication
-# or check OTP with libpam-script / pam_script_auth
+# or check OTP via PAM with libpam-script / pam_script_auth
+# or check OPT for OpenVPN via auth-user-pass-verify w/ method set to "via-env"
 #     Copyright (C) 2011 - Ben Fuhrmannek <bef@pentaphase.de>
 # 
 #     This program is free software: you can redistribute it and/or modify
@@ -16,6 +17,7 @@
 #     You should have received a copy of the GNU General Public License
 #     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
+package require Tcl 8.5
 
 set auto_path [linsert $auto_path 0 {*}[list /opt/yubi /opt/yubi-tcl /usr/lib/yubi-tcl /usr/local/lib/yubi-tcl [file join [info script] ..]]]
 package require yubi
