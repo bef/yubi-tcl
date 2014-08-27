@@ -14,6 +14,7 @@ On Debian or Ubuntu try: {{{apt-get install tcl8.5 tcllib}}}
   {{{svn checkout http://yubi-tcl.googlecode.com/svn/trunk/ yubi-tcl}}}
 
 == Files ==
+|| auth/ || interface scripts for client authentication ||
 || cgi-verify-2.0.tcl || validation server ||
 || data/ || user and key storage for file backend ||
 || etc/yubiconfig.tcl || validation server configuration ||

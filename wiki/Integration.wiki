@@ -33,18 +33,30 @@ The API URL must be compatible with [http://code.google.com/p/yubico-c-client yk
 Additional parameters and documentation can be found on the [http://code.google.com/p/yubico-pam/wiki/ReadMe yubico-pam readme page].
 
 == Linux-PAM (libpam-script) ==
-  * follow instructions in "Linux-PAM (yubico-pam)", but install `libpam-script` instead, e.g. `apt-get install libpam-script`
+  * Follow instructions in "Linux-PAM (yubico-pam)", but install `libpam-script` instead, e.g. `apt-get install libpam-script`
   * Configure PAM, e.g. /etc/pam.d/sshd:
 {{{
-auth sufficient pam_script.so dir=/opt/yubi/examples
+auth sufficient pam_script.so dir=/opt/yubi/auth
 }}}
-  * copy or link `ssh_force_cmd.tcl` to `pam_script_auth`:
+  * If 'dir' is missing (as in the default installation), copy or link `auth_cmd.tcl` to `/usr/share/libpam-script/pam_script_auth` + call `pam-auth-update`:
 {{{
-cd /opt/yubi/examples
-ln -s ssh_force_cmd.tcl pam_script_auth
+ln -s /opt/yubi/auth/auth_cmd.tcl /usr/share/libpam-script/pam_script_auth
+pam-auth-update
 }}}
 
-Note on Ubuntu (trusty): The libpam-script package automatically inserts itself into the authentication chain. The symbolic link `pam_script_auth` is in `/usr/share/libpam-script` by default.
+Note on Debian (wheezy) and Ubuntu (trusty) (possibly others): The libpam-script package automatically inserts itself into the authentication chain. The symbolic link `pam_script_auth` is in `/usr/share/libpam-script` by default.
+This can be changed by adding a file like the following:
+{{{
+cat <<EOF >/usr/share/pam-configs/pam_script_yubi
+Name: Support for authentication via pam_script + yubi key
+Default: yes
+Priority: 257
+Auth-Type: Primary
+Auth:
+       sufficient         pam_script.so dir=/opt/yubi/auth
+EOF
+}}}
+To activate use `pam-auth-update`.
 
 == php-yubico ==
   * Download and unpack [http://code.google.com/p/php-yubico/ php-yubico]
@@ -59,7 +71,7 @@ Note on Ubuntu (trusty): The libpam-script package automatically inserts itself 
 	        #Banner /etc/otp_banner
 	        PasswordAuthentication no
 	        PubkeyAuthentication yes
-	        ForceCommand /opt/yubi/examples/ssh_force_cmd.tcl ini=/opt/yubi/etc/authorized_yubi.ini
+	        ForceCommand /opt/yubi/auth/auth_cmd.tcl ini=/opt/yubi/etc/authorized_yubi.ini
 }}}
   The ForceCommand script verifies the correct input of an OTP token after successful public key authentication.
   * Configure validation server and allowed keys in `/opt/yubi/etc/authorized_yubi.ini`:
