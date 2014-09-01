@@ -128,6 +128,13 @@ proc go {} {
 	if {![dict get $key active]} {
 		return -code error -errorcode OTP -options [list api_response OPERATION_NOT_ALLOWED data $ret] "key deactivated"
 	}
+
+	## check & update otp/nonce (with normalized otp)
+	if {![${::yubi::wsapi::backend}::check_and_update_otp_nonce $params(id) $otp $params(nonce)]} {
+		set api_response REPLAYED_REQUEST
+		if {$params(v11compatible) == "1"} {set api_response REPLAYED_OTP}
+		return -code error -errorcode OTP -options [list api_response $api_response data $ret] "go away."
+	}
 	
 	## decode otp (otpdecode checks for valid crc)
 	set otpdata [::yubi::otpdecode [dict get $key aeskey] $otp]
@@ -135,13 +142,6 @@ proc go {} {
 	## verify secret uid
 	if {[string compare [dict get $otpdata uid] [dict get $key uid]] != 0} {
 		return -code error -errorcode OTP -options [list api_response BAD_OTP data $ret] "incorrect secret uid"
-	}
-	
-	## check & update otp/nonce (with normalized otp)
-	if {![${::yubi::wsapi::backend}::check_and_update_otp_nonce $params(id) $otp $params(nonce)]} {
-		set api_response REPLAYED_REQUEST
-		if {$params(v11compatible) == "1"} {set api_response REPLAYED_OTP}
-		return -code error -errorcode OTP -options [list api_response $api_response data $ret] "go away."
 	}
 	
 	## check counters

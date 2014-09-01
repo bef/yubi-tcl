@@ -25,7 +25,7 @@ namespace eval ::yubi::wsapi::backend_file {
 	variable config
 	
 	## configuration
-	array set config {datadir "/opt/yubi/data" cachedir "/var/cache/yubi"}
+	array set config {datadir "/opt/yubi/data" cachedir "/var/cache/yubi" check_nonceotp_replay 0}
 	if {[info exists ::config(wsapi_backend_file)]} {
 		array set config $::config(wsapi_backend_file)
 	}
@@ -158,6 +158,8 @@ namespace eval ::yubi::wsapi::backend_file {
 	## otherwise update and return 1 on success
 	proc check_and_update_otp_nonce {tokenid otp nonce} {
 		variable config
+		if {!$config(check_nonceotp_replay)} { return 1 }
+		
 		set cachedir [file join $config(cachedir) nonce $tokenid]
 		set hash [string tolower [::md5::md5 -hex "$otp:$nonce"]]
 		set cachefile [file join $cachedir $hash]
