@@ -9,6 +9,6 @@ set ::config(debug) 0
 set ::config(wsapi_backend) file
 
 ## configure file backend
-set ::config(wsapi_backend_file) {datadir "/opt/yubi/data" cachedir "/var/cache/yubi"}
+set ::config(wsapi_backend_file) {datadir "/opt/yubi/data" cachedir "/var/cache/yubi" check_nonceotp_replay 0}
 
 
