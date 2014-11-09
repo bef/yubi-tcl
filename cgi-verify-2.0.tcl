@@ -77,7 +77,7 @@ proc go {} {
 	# 	return -code error -errorcode OTP -options {api_response BAD_OTP} "empty OTP"
 	# }
 	
-	if {[string length $params(nonce)] < 16 || [string length $params(nonce)] > 40 || ![string is xdigit $params(nonce)]} {
+	if {[string length $params(nonce)] < 16 || [string length $params(nonce)] > 40 || ![string is alnum $params(nonce)]} {
 		return -code error -errorcode OTP -options {api_response MISSING_PARAMETER} "invalid nonce"
 	}
 
