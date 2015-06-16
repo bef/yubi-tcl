@@ -1,5 +1,5 @@
 #summary How to use yubi-tcl with your setup, e.g. PAM
-<wiki:toc max_depth="1" />
+<wiki:toc max_depth="2" />
 
 = Integration =
 == Linux-PAM (yubico-pam) ==
