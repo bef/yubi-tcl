@@ -136,3 +136,13 @@ Match User user
 tokenids = djiehevlhiti
 password:djiehevlhiti = 0000
 }}}
+
+== OpenVPN ==
+{{{
+# ...
+auth-user-pass-verify /opt/yubi/auth/auth_cmd.tcl via-env
+username-as-common-name
+client-cert-not-required
+script-security 3
+}}}
+
