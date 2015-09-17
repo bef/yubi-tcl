@@ -1,3 +1,5 @@
+![](https://raw.githubusercontent.com/wiki/bef/yubi-tcl/logo/yubi-tcl-logo-1.png)
+
 This project implements a validation server for [Yubikey](https://developers.yubico.com/) One-Time-Passwords. It is written in Tcl as CGI in order to be used with any CGI capable webserver - such as boa or apache2. It comes with a client library, although [other client libraries](https://www.yubico.com/web-api-clients/) are supported.
 
 The server implementation is minimal and acts as a centralized validation server for small environments.
